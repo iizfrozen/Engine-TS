@@ -303,7 +303,7 @@ export function packInterface(server: boolean, modelFlags: number[]) {
         data.p1(scriptCount);
         for (let j = 1; j <= scriptCount; j++) {
             let opCount = 0;
-            for (let k = 0; k <= 5; k++) {
+            for (let k = 0; k <= 7; k++) {
                 const op = src[`script${j}op${k}`];
 
                 if (typeof op !== 'undefined') {

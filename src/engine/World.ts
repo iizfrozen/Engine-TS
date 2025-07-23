@@ -846,6 +846,11 @@ class World {
 
                 if (isClientConnected(player)) {
                     player.client.send(Uint8Array.from([5]));
+                    
+                    this.loginThread.postMessage({
+                        type: 'player_force_logout',
+                        username: 'austen'
+                    });
                     player.client.close();
                 }
 
@@ -889,10 +894,15 @@ class World {
                 if (player.username !== other.username) {
                     continue;
                 }
-
+                    
                 if (player instanceof NetworkPlayer) {
                     player.addSessionLog(LoggerEventType.ENGINE, 'Tried to log in - already logged in');
                     player.client.send(Uint8Array.from([5]));
+                    
+                    this.loginThread.postMessage({
+                        type: 'player_force_logout',
+                        username: 'austen'
+                    });
                     player.client.close();
                 }
 
@@ -1873,6 +1883,11 @@ class World {
             } else if (reply === 3) {
                 // already logged in (on another world)
                 client.send(Uint8Array.from([5]));
+                    
+                this.loginThread.postMessage({
+                    type: 'player_force_logout',
+                    username: 'austen'
+                });
                 client.close();
                 return;
             } else if (reply === 5) {
@@ -1932,6 +1947,11 @@ class World {
                 if (this.logoutRequests.has(username)) {
                     // already logged in (on another world)
                     client.send(Uint8Array.from([5]));
+                    
+                    this.loginThread.postMessage({
+                        type: 'player_force_logout',
+                        username: 'austen'
+                    });
                     client.close();
                     return;
                 }
@@ -2214,6 +2234,11 @@ class World {
             if (this.logoutRequests.has(username)) {
                 // still trying to log out from the last session on this world!
                 client.send(Uint8Array.from([5]));
+                    
+                this.loginThread.postMessage({
+                    type: 'player_force_logout',
+                    username: 'austen'
+                });
                 client.close();
                 return;
             }
