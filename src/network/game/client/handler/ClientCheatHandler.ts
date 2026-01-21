@@ -12,6 +12,7 @@ import ObjType from '#/cache/config/ObjType.js';
 import ScriptVarType from '#/cache/config/ScriptVarType.js';
 import SeqType from '#/cache/config/SeqType.js';
 import SpotanimType from '#/cache/config/SpotanimType.js';
+import VarBitType from '#/cache/config/VarBitType.js';
 import VarPlayerType from '#/cache/config/VarPlayerType.js';
 
 import { CoordGrid } from '#/engine/CoordGrid.js';
@@ -146,9 +147,9 @@ export default class ClientCheatHandler extends ClientGameMessageHandler<ClientC
                 }
 
                 player.executeScript(ScriptRunner.init(script, player, null, params), false);
-            } else if (cmd === 'reload' && !Environment.STANDALONE_BUNDLE) {
+            } else if (cmd === 'reload') {
                 World.reload();
-            } else if (cmd === 'rebuild' && !Environment.STANDALONE_BUNDLE) {
+            } else if (cmd === 'rebuild') {
                 player.messageGame('Rebuilding scripts...');
                 World.rebuild();
             } else if (cmd === 'speed') {
@@ -197,7 +198,29 @@ export default class ClientCheatHandler extends ClientGameMessageHandler<ClientC
                     return false;
                 }
 
-                const varp = VarPlayerType.getByName(args[0]);
+                const debugname = args[0];
+                const value = Math.max(-0x80000000, Math.min(tryParseInt(args[1], 0), 0x7fffffff));
+
+                let varp: VarPlayerType | null = null;
+                const varbit = VarBitType.getByName(debugname);
+                if (varbit) {
+                    varp = VarPlayerType.get(varbit.basevar);
+
+                    if (varp.protect) {
+                        player.closeModal();
+
+                        if (!player.canAccess()) {
+                            player.messageGame('Please finish what you are doing first.');
+                            return false;
+                        }
+
+                        player.clearInteraction();
+                        player.unsetMapFlag();
+                    }
+                } else {
+                    varp = VarPlayerType.getByName(debugname);
+                }
+
                 if (!varp) {
                     return false;
                 }
@@ -214,9 +237,13 @@ export default class ClientCheatHandler extends ClientGameMessageHandler<ClientC
                     player.unsetMapFlag();
                 }
 
-                const value = Math.max(-0x80000000, Math.min(tryParseInt(args[1], 0), 0x7fffffff));
-                player.setVar(varp.id, value);
-                player.messageGame('set ' + varp.debugname + ': to ' + value);
+                if (varbit) {
+                    player.setVarBit(varbit.id, value);
+                    player.messageGame('set ' + varbit.debugname + ': to ' + value);
+                } else {
+                    player.setVar(varp.id, value);
+                    player.messageGame('set ' + varp.debugname + ': to ' + value);
+                }
             } else if (cmd === 'setvarother' && Environment.NODE_PRODUCTION) {
                 // custom
                 if (args.length < 3) {
@@ -258,13 +285,39 @@ export default class ClientCheatHandler extends ClientGameMessageHandler<ClientC
                     return false;
                 }
 
-                const varp = VarPlayerType.getByName(args[0]);
+                const debugname = args[0];
+
+                let varp: VarPlayerType | null = null;
+                const varbit = VarBitType.getByName(debugname);
+                if (varbit) {
+                    varp = VarPlayerType.get(varbit.basevar);
+
+                    if (varp.protect) {
+                        player.closeModal();
+
+                        if (!player.canAccess()) {
+                            player.messageGame('Please finish what you are doing first.');
+                            return false;
+                        }
+
+                        player.clearInteraction();
+                        player.unsetMapFlag();
+                    }
+                } else {
+                    varp = VarPlayerType.getByName(debugname);
+                }
+
                 if (!varp) {
                     return false;
                 }
 
-                const value = player.getVar(varp.id);
-                player.messageGame('get ' + varp.debugname + ': ' + value);
+                if (varbit) {
+                    const value = player.getVarBit(varbit.id);
+                    player.messageGame('get ' + varbit.debugname + ': ' + value);
+                } else {
+                    const value = player.getVar(varp.id);
+                    player.messageGame('get ' + varp.debugname + ': ' + value);
+                }
             } else if (cmd === 'getvarother' && Environment.NODE_PRODUCTION) {
                 // custom
                 if (args.length < 2) {
@@ -474,6 +527,21 @@ export default class ClientCheatHandler extends ClientGameMessageHandler<ClientC
                 }
 
                 player.openMainModal(type.id);
+            } else if (cmd === 'openoverlay') {
+                if (args.length < 1) {
+                    return false;
+                }
+
+                const name: string = args[0];
+                const type: Component | null = Component.getByName(name);
+
+                if (!type || type.rootLayer !== type.id) {
+                    return false;
+                }
+
+                player.openMainOverlay(type.id);
+            } else if (cmd === 'closeoverlay') {
+                player.openMainOverlay(-1);
             } else if (cmd === 'snapshot') {
                 const heap = v8.writeHeapSnapshot();
                 printDebug(`Heap snapshot written to: ${heap}`);

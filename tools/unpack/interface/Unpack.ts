@@ -6,7 +6,7 @@ import Packet from '#/io/Packet.js';
 import Environment from '#/util/Environment.js';
 import { printFatalError, printWarning } from '#/util/Logger.js';
 import { listFilesExt } from '#tools/pack/Parse.js';
-import { InterfacePack, ModelPack, ObjPack, SeqPack, VarpPack } from '#tools/pack/PackFile.js';
+import { InterfacePack, ModelPack, ObjPack, SeqPack, VarbitPack, VarpPack } from '#tools/pack/PackFile.js';
 
 function renameModel(id: number) {
     const existingFiles = listFilesExt(`${Environment.BUILD_SRC_DIR}/models`, '.ob2');
@@ -169,6 +169,7 @@ class IfType {
                 com.draggable = dat.gbool();
                 com.interactable = dat.gbool();
                 com.usable = dat.gbool();
+                com.swappable = dat.gbool();
                 com.marginX = dat.g1();
                 com.marginY = dat.g1();
 
@@ -217,6 +218,7 @@ class IfType {
             if (com.comType === ComponentType.TYPE_RECT || com.comType === ComponentType.TYPE_TEXT) {
                 com.activeColour = dat.g4s();
                 com.overColour = dat.g4s();
+                com.activeOverColour = dat.g4s();
             }
 
             if (com.comType === ComponentType.TYPE_GRAPHIC) {
@@ -432,6 +434,10 @@ class IfType {
                 temp.push(`height=${this.height}`);
             }
 
+            if (this.trans) {
+                temp.push(`trans=${this.trans}`);
+            }
+
             if (this.overLayer !== -1) {
                 temp.push(`overlayer=${InterfacePack.getById(this.overLayer).split(':')[1]}`);
             }
@@ -521,6 +527,31 @@ class IfType {
                             str += `testbit,${VarpPack.getById(varp) || 'varp_' + varp},${bit}`;
                             break;
                         }
+                        case 14: {
+                            const varbit = popStack();
+                            str += `push_varbit,${VarbitPack.getById(varbit) || 'varbit_' + varbit}`;
+                            break;
+                        }
+                        case 15:
+                            str += 'subtract';
+                            break;
+                        case 16:
+                            str += 'divide';
+                            break;
+                        case 17:
+                            str += 'multiply';
+                            break;
+                        case 18:
+                            str += 'coordx';
+                            break;
+                        case 19:
+                            str += 'coordz';
+                            break;
+                        case 20: {
+                            const value = popStack();
+                            str += `push_constant,${value}`;
+                            break;
+                        }
                         default:
                             printFatalError('Unknown script opcode: ' + op);
                             break;
@@ -577,6 +608,10 @@ class IfType {
 
             if (this.usable) {
                 temp.push('usable=yes');
+            }
+
+            if (this.swappable) {
+                temp.push('swappable=yes');
             }
 
             if (this.marginX || this.marginY) {
@@ -658,6 +693,10 @@ class IfType {
 
             if (this.overColour) {
                 temp.push(`overcolour=0x${this.overColour.toString(16).toUpperCase().padStart(6, '0')}`);
+            }
+
+            if (this.activeOverColour) {
+                temp.push(`activeovercolour=0x${this.activeOverColour.toString(16).toUpperCase().padStart(6, '0')}`);
             }
         }
 
@@ -823,6 +862,7 @@ class IfType {
     draggable: boolean = false;
     interactable: boolean = false;
     usable: boolean = false;
+    swappable: boolean = false;
     marginX: number = 0;
     marginY: number = 0;
     invSlotOffsetX: Int16Array | null = null;
@@ -838,6 +878,7 @@ class IfType {
     colour: number = 0;
     activeColour: number = 0;
     overColour: number = 0;
+    activeOverColour: number = 0;
     graphic: string | null = null;
     activeGraphic: string | null = null;
     model: number = -1;

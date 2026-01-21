@@ -38,7 +38,7 @@ function renameModel(id: number, name: string) {
     return model;
 }
 
-export function unpackNpcConfig(config: ConfigIdx, id: number): string[] {
+export function unpackNpcConfig(config: ConfigIdx, id: number, compare?: ConfigIdx, modelRenameOffset?: number): string[] {
     const { dat, pos, len } = config;
     dat.pos = pos[id];
 
@@ -65,8 +65,13 @@ export function unpackNpcConfig(config: ConfigIdx, id: number): string[] {
 
                 modelIds.push(modelId);
 
-                const model = renameModel(modelId, debugname);
-                def.push(`model${index}=${model}`);
+                if ((compare && id < compare.size) || modelId < modelRenameOffset!) {
+                    const model = ModelPack.getById(modelId);
+                    def.push(`model${index}=${model}`);
+                } else {
+                    const model = renameModel(modelId, debugname);
+                    def.push(`model${index}=${model}`);
+                }
             }
         } else if (code === 2) {
             const name = dat.gjstr();
@@ -121,8 +126,13 @@ export function unpackNpcConfig(config: ConfigIdx, id: number): string[] {
 
                 modelIds.push(modelId);
 
-                const model = renameModel(modelId, `${debugname}_head`);
-                def.push(`head${index}=${model}`);
+                if ((compare && id < compare.size) || modelId < modelRenameOffset!) {
+                    const model = ModelPack.getById(modelId);
+                    def.push(`head${index}=${model}`);
+                } else {
+                    const model = renameModel(modelId, `${debugname}_head`);
+                    def.push(`head${index}=${model}`);
+                }
             }
         } else if (code === 93) {
             def.push('minimap=no');
@@ -150,6 +160,9 @@ export function unpackNpcConfig(config: ConfigIdx, id: number): string[] {
         } else if (code === 102) {
             const headicon = dat.g2();
             def.push(`headicon=${headicon}`);
+        } else if (code === 103) {
+            const turnspeed = dat.g2();
+            def.push(`turnspeed=${turnspeed}`);
         } else {
             printWarning(`unknown npc code ${code}`);
         }

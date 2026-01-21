@@ -38,7 +38,7 @@ function renameModel(id: number, name: string) {
     return model;
 }
 
-export function unpackSpotAnimConfig(config: ConfigIdx, id: number): string[] {
+export function unpackSpotAnimConfig(config: ConfigIdx, id: number, compare?: ConfigIdx, modelRenameOffset?: number): string[] {
     const { dat, pos, len } = config;
 
     const debugname = SpotAnimPack.getById(id);
@@ -61,8 +61,13 @@ export function unpackSpotAnimConfig(config: ConfigIdx, id: number): string[] {
 
             modelIds.push(modelId);
 
-            const model = renameModel(modelId, debugname);
-            def.push(`model=${model}`);
+            if ((compare && id < compare.size) || modelId < modelRenameOffset!) {
+                const model = ModelPack.getById(modelId);
+                def.push(`model=${model}`);
+            } else {
+                const model = renameModel(modelId, debugname);
+                def.push(`model=${model}`);
+            }
         } else if (code === 2) {
             const seqId = dat.g2();
 

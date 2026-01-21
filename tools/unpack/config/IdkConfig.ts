@@ -55,7 +55,7 @@ enum IdkPartType {
     woman_feet = 13
 }
 
-export function unpackIdkConfig(config: ConfigIdx, id: number): string[] {
+export function unpackIdkConfig(config: ConfigIdx, id: number, compare?: ConfigIdx, modelRenameOffset?: number): string[] {
     const { dat, pos, len } = config;
 
     const debugname = IdkPack.getById(id);
@@ -84,8 +84,13 @@ export function unpackIdkConfig(config: ConfigIdx, id: number): string[] {
 
                 modelIds.push(modelId);
 
-                const model = renameModel(modelId, debugname);
-                def.push(`model${i + 1}=${model}`);
+                if ((compare && id < compare.size) || modelId < modelRenameOffset!) {
+                    const model = ModelPack.getById(modelId);
+                    def.push(`model${i + 1}=${model}`);
+                } else {
+                    const model = renameModel(modelId, debugname);
+                    def.push(`model${i + 1}=${model}`);
+                }
             }
         } else if (code === 3) {
             def.push('disable=yes');
@@ -105,8 +110,13 @@ export function unpackIdkConfig(config: ConfigIdx, id: number): string[] {
 
             modelIds.push(modelId);
 
-            const model = renameModel(modelId, `${debugname}_head`);
-            def.push(`head${index}=${model}`);
+            if ((compare && id < compare.size) || modelId < modelRenameOffset!) {
+                const model = ModelPack.getById(modelId);
+                def.push(`head${index}=${model}`);
+            } else {
+                const model = renameModel(modelId, `${debugname}_head`);
+                def.push(`head${index}=${model}`);
+            }
         } else {
             printWarning(`unknown idk code ${code}`);
         }

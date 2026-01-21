@@ -7,7 +7,7 @@ import Jagfile from '#/io/Jagfile.js';
 import Packet from '#/io/Packet.js';
 import Environment from '#/util/Environment.js';
 import { loadDir } from '#tools/pack/NameMap.js';
-import { VarnPack, VarpPack, VarsPack, shouldBuild, CategoryPack, shouldBuildFile } from '#tools/pack/PackFile.js';
+import { VarnPack, VarpPack, VarsPack, shouldBuild, CategoryPack, shouldBuildFile, VarbitPack } from '#tools/pack/PackFile.js';
 import { packDbRowConfigs, parseDbRowConfig } from '#tools/pack/config/DbRowConfig.js';
 import { packDbTableConfigs, parseDbTableConfig } from '#tools/pack/config/DbTableConfig.js';
 import { packEnumConfigs, parseEnumConfig } from '#tools/pack/config/EnumConfig.js';
@@ -26,6 +26,7 @@ import { packStructConfigs, parseStructConfig } from '#tools/pack/config/StructC
 import { packVarnConfigs, parseVarnConfig } from '#tools/pack/config/VarnConfig.js';
 import { packVarpConfigs, parseVarpConfig } from '#tools/pack/config/VarpConfig.js';
 import { packVarsConfigs, parseVarsConfig } from '#tools/pack/config/VarsConfig.js';
+import { packVarbitConfigs, parseVarbitConfig } from '#tools/pack/config/VarbitConfig.js';
 import FileStream from '#/io/FileStream.js';
 
 export function isConfigBoolean(input: string): boolean {
@@ -296,6 +297,12 @@ export async function packConfigs(cache: FileStream, modelFlags: number[]) {
         }
         names.add(name);
     }
+    for (const [name, _id] of VarbitPack.names.entries()) {
+        if (names.has(name)) {
+            throw new Error(`Non-unique var name found: ${name}`);
+        }
+        names.add(name);
+    }
     for (const [name, _id] of VarnPack.names.entries()) {
         if (names.has(name)) {
             throw new Error(`Non-unique var name found: ${name}`);
@@ -435,7 +442,7 @@ export async function packConfigs(cache: FileStream, modelFlags: number[]) {
                 idx.release();
             },
             (client: Packet, _server: Packet): boolean => {
-                return Packet.checkcrc(client.data, 0, client.pos, 1405403166);
+                return Packet.checkcrc(client.data, 0, client.pos, -716271600);
             }
         );
     }
@@ -459,7 +466,7 @@ export async function packConfigs(cache: FileStream, modelFlags: number[]) {
                 idx.release();
             },
             (client: Packet, _server: Packet): boolean => {
-                return Packet.checkcrc(client.data, 0, client.pos, 1195428820);
+                return Packet.checkcrc(client.data, 0, client.pos, -826309209);
             }
         );
     }
@@ -483,7 +490,7 @@ export async function packConfigs(cache: FileStream, modelFlags: number[]) {
                 idx.release();
             },
             (client: Packet, _server: Packet): boolean => {
-                return Packet.checkcrc(client.data, 0, client.pos, 1976597026);
+                return Packet.checkcrc(client.data, 0, client.pos, -1566957964);
             }
         );
     }
@@ -507,7 +514,7 @@ export async function packConfigs(cache: FileStream, modelFlags: number[]) {
                 idx.release();
             },
             (client: Packet, _server: Packet): boolean => {
-                return Packet.checkcrc(client.data, 0, client.pos, 117013845);
+                return Packet.checkcrc(client.data, 0, client.pos, -555849646);
             }
         );
     }
@@ -531,7 +538,7 @@ export async function packConfigs(cache: FileStream, modelFlags: number[]) {
                 idx.release();
             },
             (client: Packet, _server: Packet): boolean => {
-                return Packet.checkcrc(client.data, 0, client.pos, -997428438);
+                return Packet.checkcrc(client.data, 0, client.pos, 1077655221);
             }
         );
     }
@@ -555,7 +562,7 @@ export async function packConfigs(cache: FileStream, modelFlags: number[]) {
                 idx.release();
             },
             (client: Packet, _server: Packet): boolean => {
-                return Packet.checkcrc(client.data, 0, client.pos, 1589810970);
+                return Packet.checkcrc(client.data, 0, client.pos, 535204494);
             }
         );
     }
@@ -603,7 +610,31 @@ export async function packConfigs(cache: FileStream, modelFlags: number[]) {
                 idx.release();
             },
             (client: Packet, _server: Packet): boolean => {
-                return Packet.checkcrc(client.data, 0, client.pos, -1961744050);
+                return Packet.checkcrc(client.data, 0, client.pos, 1039564548);
+            }
+        );
+    }
+
+    if (rebuildClient || shouldBuild(`${Environment.BUILD_SRC_DIR}/scripts`, '.varbit', 'data/pack/server/varbit.dat') || shouldBuild('tools/pack/config', '.ts', 'data/pack/server/varbit.dat')) {
+        await readConfigs(
+            dirTree,
+            '.varbit',
+            ['basevar', 'startbit', 'endbit'],
+            modelFlags,
+            parseVarbitConfig,
+            packVarbitConfigs,
+            (dat: Packet, idx: Packet) => {
+                jag.write('varbit.dat', dat);
+                jag.write('varbit.idx', idx);
+            },
+            (dat: Packet, idx: Packet) => {
+                dat.save('data/pack/server/varbit.dat');
+                idx.save('data/pack/server/varbit.idx');
+                dat.release();
+                idx.release();
+            },
+            (client: Packet, _server: Packet): boolean => {
+                return Packet.checkcrc(client.data, 0, client.pos, -1387031023);
             }
         );
     }

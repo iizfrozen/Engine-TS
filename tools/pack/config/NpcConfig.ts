@@ -24,6 +24,7 @@ export function parseNpcConfig(key: string, value: string): ConfigValue | null |
         'timer', 'respawnrate',
         'ambient', 'contrast',
         'headicon',
+        'turnspeed',
         'regenrate'
     ];
     // prettier-ignore
@@ -389,6 +390,9 @@ export function packNpcConfigs(configs: Map<string, ConfigLine[]>, modelFlags: n
                     client.p1(value as number);
                 } else if (key === 'headicon') {
                     client.p1(102);
+                    client.p2(value as number);
+                } else if (key === 'turnspeed') {
+                    client.p1(103);
                     client.p2(value as number);
                 } else if (key === 'wanderrange') {
                     server.p1(200);

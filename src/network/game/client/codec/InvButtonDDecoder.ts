@@ -7,10 +7,11 @@ export default class InvButtonDDecoder extends ClientGameMessageDecoder<InvButto
     prot = ClientGameProt.INV_BUTTOND;
 
     decode(buf: Packet) {
-        const component = buf.g2();
+        const com = buf.g2();
         const slot = buf.g2();
         const targetSlot = buf.g2();
         const mode = buf.g1();
-        return new InvButtonD(component, slot, targetSlot, mode);
+
+        return new InvButtonD(com, slot, targetSlot, mode);
     }
 }
