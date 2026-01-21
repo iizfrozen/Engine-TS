@@ -8,6 +8,8 @@ import { NpcMode } from '#/engine/entity/NpcMode.js';
 import { NpcStat } from '#/engine/entity/NpcStat.js';
 import Jagfile from '#/io/Jagfile.js';
 import Packet from '#/io/Packet.js';
+import { printFatalError } from '#/util/Logger.js';
+import kleur from 'kleur';
 
 export default class NpcType extends ConfigType {
     static configNames = new Map();
@@ -20,16 +22,6 @@ export default class NpcType extends ConfigType {
         const server = Packet.load(`${dir}/server/npc.dat`);
         const jag = Jagfile.load(`${dir}/client/config`);
         this.parse(server, jag);
-    }
-
-    static async loadAsync(dir: string) {
-        const file = await fetch(`${dir}/server/npc.dat`);
-        if (!file.ok) {
-            return;
-        }
-
-        const [server, jag] = await Promise.all([file.arrayBuffer(), Jagfile.loadAsync(`${dir}/client/config`)]);
-        this.parse(new Packet(new Uint8Array(server)), jag);
     }
 
     static parse(server: Packet, jag: Jagfile) {
@@ -104,7 +96,7 @@ export default class NpcType extends ConfigType {
     headicon = -1;
 
     // server-side
-    regenRate = 100;
+    regenrate = 100;
     category = -1;
     wanderrange = 5;
     maxrange = 7;
@@ -205,11 +197,11 @@ export default class NpcType extends ConfigType {
         } else if (code === 101) {
             this.contrast = dat.g1b();
         } else if (code === 102) {
-            this.headicon = dat.g1();
+            this.headicon = dat.g2();
         } else if (code === 200) {
-            this.wanderrange = dat.g1();
+            this.wanderrange = dat.g2();
         } else if (code === 201) {
-            this.maxrange = dat.g1();
+            this.maxrange = dat.g2();
         } else if (code === 202) {
             this.huntrange = dat.g1();
         } else if (code === 203) {
@@ -219,7 +211,7 @@ export default class NpcType extends ConfigType {
         } else if (code === 206) {
             this.moverestrict = dat.g1();
         } else if (code == 207) {
-            this.attackrange = dat.g1();
+            this.attackrange = dat.g2();
         } else if (code === 208) {
             this.blockwalk = dat.g1();
         } else if (code === 209) {
@@ -235,17 +227,19 @@ export default class NpcType extends ConfigType {
             this.patrolDelay = new Array(count);
 
             for (let j = 0; j < count; j++) {
-                this.patrolCoord[j] = dat.g4();
+                this.patrolCoord[j] = dat.g4s();
                 this.patrolDelay[j] = dat.g1();
             }
         } else if (code === 213) {
             this.givechase = false;
+        } else if (code === 214) {
+            this.regenrate = dat.g2();
         } else if (code === 249) {
             this.params = ParamHelper.decodeParams(dat);
         } else if (code === 250) {
             this.debugname = dat.gjstr();
         } else {
-            throw new Error(`Unrecognized npc config code: ${code}`);
+            printFatalError(`Unrecognized npc config code: ${code}\nThis error comes from the packed data being out of sync, try running ` + kleur.green().bold('npm run build') + ', then restarting this.');
         }
     }
 }

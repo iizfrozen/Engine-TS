@@ -1,6 +1,6 @@
 
 import { db } from '#/db/query.js';
-import { ChatModePrivate } from '#/util/ChatModes.js';
+import { ChatModePrivate } from '#/engine/entity/ChatModes.js';
 import Environment from '#/util/Environment.js';
 import { fromBase37, toBase37 } from '#/util/JString.js';
 
@@ -80,7 +80,7 @@ export class FriendServerRepository {
             return false;
         }
 
-        if (!this.playerStaff.has(username37) && staffLvl > 0) {
+        if (staffLvl > 1 && !this.playerStaff.has(username37)) {
             this.playerStaff.add(username37);
         }
 

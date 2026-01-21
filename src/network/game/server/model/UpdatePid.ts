@@ -1,10 +1,10 @@
-import { ServerProtPriority } from '#/network/game/server/codec/ServerProtPriority.js';
-import OutgoingMessage from '#/network/game/server/OutgoingMessage.js';
+import ServerGameMessage from '#/network/game/server/ServerGameMessage.js';
 
-export default class UpdatePid extends OutgoingMessage {
-    priority = ServerProtPriority.IMMEDIATE; // todo: what should priority be?
-
-    constructor(readonly uid: number, readonly members: boolean) {
+export default class UpdatePid extends ServerGameMessage {
+    constructor(
+        readonly uid: number,
+        readonly members: boolean
+    ) {
         super();
     }
 }

@@ -9,6 +9,18 @@ import Pix from '#/cache/graphics/Pix.js';
 const cache = new FileStream('data/unpack');
 const title = new Jagfile(new Packet(cache.read(0, 1)!));
 
+if (!fs.existsSync(`${Environment.BUILD_SRC_DIR}/binary`)) {
+    fs.mkdirSync(`${Environment.BUILD_SRC_DIR}/binary`, { recursive: true });
+}
+
+if (!fs.existsSync(`${Environment.BUILD_SRC_DIR}/title`)) {
+    fs.mkdirSync(`${Environment.BUILD_SRC_DIR}/title`, { recursive: true });
+}
+
+if (!fs.existsSync(`${Environment.BUILD_SRC_DIR}/fonts`)) {
+    fs.mkdirSync(`${Environment.BUILD_SRC_DIR}/fonts`, { recursive: true });
+}
+
 const background = title.read('title.dat');
 if (background) {
     fs.writeFileSync(`${Environment.BUILD_SRC_DIR}/binary/title.jpg`, background.data);

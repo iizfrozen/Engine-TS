@@ -25,16 +25,6 @@ export default class ObjType extends ConfigType {
         this.parse(server, jag);
     }
 
-    static async loadAsync(dir: string) {
-        const file = await fetch(`${dir}/server/obj.dat`);
-        if (!file.ok) {
-            return;
-        }
-
-        const [server, jag] = await Promise.all([file.arrayBuffer(), Jagfile.loadAsync(`${dir}/client/config`)]);
-        this.parse(new Packet(new Uint8Array(server)), jag);
-    }
-
     static parse(server: Packet, jag: Jagfile) {
         ObjType.configNames = new Map();
         ObjType.configs = [];
@@ -172,6 +162,11 @@ export default class ObjType extends ConfigType {
     countco: Uint16Array | null = null;
     certlink = -1;
     certtemplate = -1;
+    resizex = 128;
+    resizey = 128;
+    resizez = 128;
+    ambient = 0;
+    contrast = 0;
 
     // server-side
     wearpos = -1;
@@ -208,7 +203,7 @@ export default class ObjType extends ConfigType {
         } else if (code === 11) {
             this.stackable = true;
         } else if (code === 12) {
-            this.cost = dat.g4();
+            this.cost = dat.g4s();
         } else if (code === 13) {
             this.wearpos = dat.g1();
         } else if (code === 14) {
@@ -279,6 +274,16 @@ export default class ObjType extends ConfigType {
             }
             this.countobj[code - 100] = dat.g2();
             this.countco[code - 100] = dat.g2();
+        } else if (code === 110) {
+            this.resizex = dat.g2();
+        } else if (code === 111) {
+            this.resizey = dat.g2();
+        } else if (code === 112) {
+            this.resizez = dat.g2();
+        } else if (code === 113) {
+            this.ambient = dat.g1b();
+        } else if (code === 114) {
+            this.contrast = dat.g1b();
         } else if (code === 201) {
             this.respawnrate = dat.g2();
         } else if (code === 249) {

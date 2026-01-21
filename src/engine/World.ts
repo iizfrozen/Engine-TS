@@ -92,12 +92,13 @@ import Environment from '#/util/Environment.js';
 import { fromBase37, toBase37, toSafeName } from '#/util/JString.js';
 import LinkList from '#/util/LinkList.js';
 import { printDebug, printError, printInfo } from '#/util/Logger.js';
-import { WalkTriggerSetting } from '#/util/WalkTriggerSetting.js';
+import { WalkTriggerSetting } from '#/engine/entity/WalkTriggerSetting.js';
 import { createWorker } from '#/util/WorkerFactory.js';
 
-import InputTrackingBlob from './entity/tracking/InputEvent.js';
+import InputTrackingBlob from './entity/tracking/InputTrackingBlob.js';
 import OnDemand from './OnDemand.js';
 import { ObjDelayedRequest } from './entity/ObjDelayedRequest.js';
+import DbTableIndex from '#/cache/config/DbTableIndex.js';
 
 const priv = forge.pki.privateKeyFromPem(Environment.STANDALONE_BUNDLE ? await (await fetch('data/config/private.pem')).text() : fs.readFileSync('data/config/private.pem', 'ascii'));
 
@@ -244,11 +245,17 @@ class World {
 
         if (clearInvs) {
             this.invs.clear();
-            for (let i = 0; i < InvType.count; i++) {
-                const inv = InvType.get(i);
+            for (let id = 0; id < InvType.count; id++) {
+                const inv = InvType.get(id);
 
-                if (inv && inv.scope === InvType.SCOPE_SHARED) {
-                    this.invs.add(Inventory.fromType(i));
+                if (inv.scope === InvType.SCOPE_SHARED) {
+                    this.invs.add(Inventory.fromType(id));
+                } else if (inv.scope === InvType.SCOPE_TEMP) {
+                    for (const player of this.players) {
+                        if (player.invs.has(id)) {
+                            player.invs.delete(id);
+                        }
+                    }
                 }
             }
         }
@@ -256,6 +263,7 @@ class World {
         MesanimType.load('data/pack');
         DbTableType.load('data/pack');
         DbRowType.load('data/pack');
+        DbTableIndex.init();
         HuntType.load('data/pack');
         VarNpcType.load('data/pack');
         VarSharedType.load('data/pack');
@@ -1032,7 +1040,7 @@ class World {
             player.reorient();
             player.buildArea.rebuildNormal(); // set origin before compute player is why this is above.
 
-            const appearance = player.masks & PlayerInfoProt.APPEARANCE ? player.generateAppearance() : (player.lastAppearanceBytes ?? player.generateAppearance());
+            const appearance = player.masks & PlayerInfoProt.APPEARANCE ? player.generateAppearance() : (player.appearanceBuf ?? player.generateAppearance());
 
             rsbuf.computePlayer(
                 player.x,
@@ -1051,33 +1059,33 @@ class World {
                 appearance,
                 player.lastAppearance,
                 player.faceEntity,
-                player.faceX,
-                player.faceZ,
-                player.orientationX,
-                player.orientationZ,
-                player.damageTaken,
-                player.damageType,
-                player.damageTaken2,
-                player.damageType2,
+                player.faceSquareX,
+                player.faceSquareZ,
+                player.faceAngleX,
+                player.faceAngleZ,
+                player.hitmarkDamage,
+                player.hitmarkType,
+                player.hitmark2Damage,
+                player.hitmark2Type,
                 player.levels[PlayerStat.HITPOINTS],
                 player.baseLevels[PlayerStat.HITPOINTS],
                 player.animId,
                 player.animDelay,
-                player.chat,
-                player.message,
-                player.messageColor ?? -1,
-                player.messageEffect ?? -1,
-                player.messageType ?? 0,
-                player.graphicId,
-                player.graphicHeight,
-                player.graphicDelay,
+                player.sayMessage,
+                player.chatMessage,
+                player.chatColour ?? -1,
+                player.chatEffect ?? -1,
+                player.chatRights ?? 0,
+                player.spotanimId,
+                player.spotanimHeight,
+                player.spotanimTime,
                 player.exactStartX,
                 player.exactStartZ,
                 player.exactEndX,
                 player.exactEndZ,
                 player.exactMoveStart,
                 player.exactMoveEnd,
-                player.exactMoveDirection
+                player.exactMoveFacing
             );
         }
 
@@ -1095,22 +1103,22 @@ class World {
                 npc.isActive,
                 npc.masks,
                 npc.faceEntity,
-                npc.faceX,
-                npc.faceZ,
-                npc.orientationX,
-                npc.orientationZ,
-                npc.damageTaken,
-                npc.damageType,
-                npc.damageTaken2,
-                npc.damageType2,
+                npc.faceSquareX,
+                npc.faceSquareZ,
+                npc.faceAngleX,
+                npc.faceAngleZ,
+                npc.hitmarkDamage,
+                npc.hitmarkType,
+                npc.hitmark2Damage,
+                npc.hitmark2Type,
                 npc.levels[NpcStat.HITPOINTS],
                 npc.baseLevels[NpcStat.HITPOINTS],
                 npc.animId,
                 npc.animDelay,
-                npc.chat,
-                npc.graphicId,
-                npc.graphicHeight,
-                npc.graphicDelay
+                npc.sayMessage,
+                npc.spotanimId,
+                npc.spotanimHeight,
+                npc.spotanimTime
             );
         }
     }
@@ -1814,11 +1822,11 @@ class World {
                         }
                     } else if (msg.type === 'dev_progress') {
                         if (msg.broadcast) {
-                            console.log(msg.broadcast);
+                            printDebug(msg.broadcast);
 
                             this.broadcastMes(msg.broadcast);
                         } else if (msg.text) {
-                            console.log(msg.text);
+                            printInfo(msg.text);
                         }
                     }
                 } catch (err) {
@@ -2059,10 +2067,7 @@ class World {
                 }
 
                 const ignored: bigint[] = data.ignored.map((i: string) => BigInt(i));
-
-                if (ignored.length > 0) {
-                    player.write(new UpdateIgnoreList(ignored));
-                }
+                player.write(new UpdateIgnoreList(ignored));
             } else if (opcode == FriendsServerOpcodes.PRIVATE_MESSAGE) {
                 // username37: username.toString(),
                 // targetUsername37: target.toString(),
@@ -2232,7 +2237,7 @@ class World {
 
             const seed = [];
             for (let i = 0; i < 4; i++) {
-                seed[i] = World.loginBuf.g4();
+                seed[i] = World.loginBuf.g4s();
             }
             client.decryptor = new Isaac(seed);
 
@@ -2241,7 +2246,7 @@ class World {
             }
             client.encryptor = new Isaac(seed);
 
-            const uid = World.loginBuf.g4();
+            const uid = World.loginBuf.g4s();
             const username = World.loginBuf.gjstr();
             const password = World.loginBuf.gjstr();
 

@@ -18,16 +18,6 @@ export default class ParamType extends ConfigType {
         this.parse(dat);
     }
 
-    static async loadAsync(dir: string) {
-        const file = await fetch(`${dir}/server/param.dat`);
-        if (!file.ok) {
-            return;
-        }
-
-        const dat = new Packet(new Uint8Array(await file.arrayBuffer()));
-        this.parse(dat);
-    }
-
     static parse(dat: Packet) {
         ParamType.configNames = new Map();
         ParamType.configs = [];
@@ -77,7 +67,7 @@ export default class ParamType extends ConfigType {
         if (code === 1) {
             this.type = dat.g1();
         } else if (code === 2) {
-            this.defaultInt = dat.g4();
+            this.defaultInt = dat.g4s();
         } else if (code === 4) {
             this.autodisable = false;
         } else if (code === 5) {

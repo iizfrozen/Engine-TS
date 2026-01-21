@@ -25,16 +25,6 @@ export default class InvType extends ConfigType {
         this.parse(dat);
     }
 
-    static async loadAsync(dir: string) {
-        const file = await fetch(`${dir}/server/inv.dat`);
-        if (!file.ok) {
-            return;
-        }
-
-        const dat = new Packet(new Uint8Array(await file.arrayBuffer()));
-        this.parse(dat);
-    }
-
     static parse(dat: Packet) {
         InvType.configNames = new Map();
         InvType.configs = [];
@@ -108,7 +98,7 @@ export default class InvType extends ConfigType {
             for (let j = 0; j < count; j++) {
                 this.stockobj[j] = dat.g2();
                 this.stockcount[j] = dat.g2();
-                this.stockrate[j] = dat.g4();
+                this.stockrate[j] = dat.g4s();
             }
         } else if (code === 5) {
             this.restock = true;

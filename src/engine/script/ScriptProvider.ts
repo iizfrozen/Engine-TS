@@ -9,7 +9,7 @@ export default class ScriptProvider {
     /**
      * The expected version of the script compiler that the runtime should be loading scripts from.
      */
-    public static readonly COMPILER_VERSION = 24;
+    public static readonly COMPILER_VERSION = 26;
 
     /**
      * Array of loaded scripts.
@@ -38,20 +38,15 @@ export default class ScriptProvider {
         return this.parse(dat, idx);
     }
 
-    static async loadAsync(dir: string): Promise<number> {
-        const [dat, idx] = await Promise.all([Packet.loadAsync(`${dir}/server/script.dat`), Packet.loadAsync(`${dir}/server/script.idx`)]);
-        return this.parse(dat, idx);
-    }
-
     static parse(dat: Packet, idx: Packet): number {
         if (!dat.data.length || !idx.data.length) {
             printFatalError('No server cache found. Please build the cache first.');
         }
 
-        const entries = dat.g4();
+        const entries = dat.g4s();
         idx.pos += 4;
 
-        const version = dat.g4();
+        const version = dat.g4s();
         if (version !== ScriptProvider.COMPILER_VERSION) {
             printFatalError('\nFatal: Scripts were compiled with an incompatible RuneScript compiler. Please update it, try `npm run build` and then restart the server.');
         }
@@ -62,7 +57,7 @@ export default class ScriptProvider {
 
         let loaded = 0;
         for (let id = 0; id < entries; id++) {
-            const size = idx.g4();
+            const size = idx.g4s();
             if (size === 0) {
                 continue;
             }

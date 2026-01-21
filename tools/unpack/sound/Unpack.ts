@@ -5,13 +5,9 @@ import Jagfile from '#/io/Jagfile.js';
 import Packet from '#/io/Packet.js';
 import Environment from '#/util/Environment.js';
 import FileStream from '#/io/FileStream.js';
-import { SynthPack } from '#/util/PackFile.js';
-import { listFilesExt } from '#/util/Parse.js';
+import { SynthPack } from '#tools/pack/PackFile.js';
+import { listFilesExt } from '#tools/pack/Parse.js';
 import { printWarning } from '#/util/Logger.js';
-
-if (!fs.existsSync(`${Environment.BUILD_SRC_DIR}/sounds`)) {
-    fs.mkdirSync(`${Environment.BUILD_SRC_DIR}/sounds`, { recursive: true });
-}
 
 // let pack = '';
 
@@ -20,8 +16,8 @@ class Wave {
     static order: number[] = [];
 
     static unpack(buf: Packet, keepNames: boolean = true) {
-        if (!fs.existsSync(`${Environment.BUILD_SRC_DIR}/scripts/synth`)) {
-            fs.mkdirSync(`${Environment.BUILD_SRC_DIR}/scripts/synth`);
+        if (!fs.existsSync(`${Environment.BUILD_SRC_DIR}/synth`)) {
+            fs.mkdirSync(`${Environment.BUILD_SRC_DIR}/synth`);
         }
 
         // can't trust synth IDs to remain stable
@@ -103,12 +99,12 @@ class Wave {
     loopEnd = 0;
 
     unpack(buf: Packet) {
-        for (let i = 0; i < 10; i++) {
+        for (let tone = 0; tone < 10; tone++) {
             if (buf.g1() != 0) {
                 buf.pos--;
 
-                this.tones[i] = new Tone();
-                this.tones[i].unpack(buf);
+                this.tones[tone] = new Tone();
+                this.tones[tone].unpack(buf);
             }
         }
 
@@ -199,10 +195,16 @@ class Envelope {
 
     unpack(buf: Packet) {
         this.form = buf.g1();
-        this.start = buf.g4();
-        this.end = buf.g4();
+        this.start = buf.g4s();
+        this.end = buf.g4s();
 
+        this.unpackShape(buf);
+    }
+
+    unpackShape(buf: Packet) {
         this.length = buf.g1();
+        this.shapeDelta = new Array(this.length);
+        this.shapePeak = new Array(this.length);
         for (let i = 0; i < this.length; i++) {
             this.shapeDelta[i] = buf.g2();
             this.shapePeak[i] = buf.g2();
@@ -216,6 +218,10 @@ const soundsData = sounds.read('sounds.dat');
 
 if (!soundsData) {
     throw new Error('missing sounds.dat');
+}
+
+if (!fs.existsSync(`${Environment.BUILD_SRC_DIR}/synth`)) {
+    fs.mkdirSync(`${Environment.BUILD_SRC_DIR}/synth`);
 }
 
 Wave.unpack(soundsData);

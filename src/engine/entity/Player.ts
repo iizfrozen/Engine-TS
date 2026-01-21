@@ -46,7 +46,6 @@ import ScriptState from '#/engine/script/ScriptState.js';
 import ServerTriggerType from '#/engine/script/ServerTriggerType.js';
 import World from '#/engine/World.js';
 import Packet from '#/io/Packet.js';
-import { ServerProtPriority } from '#/network/game/server/codec/ServerProtPriority.js';
 import ChatFilterSettings from '#/network/game/server/model/ChatFilterSettings.js';
 import HintArrow from '#/network/game/server/model/HintArrow.js';
 import IfClose from '#/network/game/server/model/IfClose.js';
@@ -66,13 +65,14 @@ import UpdateRunEnergy from '#/network/game/server/model/UpdateRunEnergy.js';
 import UpdateStat from '#/network/game/server/model/UpdateStat.js';
 import VarpLarge from '#/network/game/server/model/VarpLarge.js';
 import VarpSmall from '#/network/game/server/model/VarpSmall.js';
-import OutgoingMessage from '#/network/game/server/OutgoingMessage.js';
+import ServerGameMessage from '#/network/game/server/ServerGameMessage.js';
 import { LoggerEventType } from '#/server/logger/LoggerEventType.js';
-import { ChatModePrivate, ChatModePublic, ChatModeTradeDuel } from '#/util/ChatModes.js';
+import { ChatModePrivate, ChatModePublic, ChatModeTradeDuel } from '#/engine/entity/ChatModes.js';
 import Environment from '#/util/Environment.js';
 import { toDisplayName } from '#/util/JString.js';
 import LinkList from '#/util/LinkList.js';
-import { MidiPack } from '#/util/PackFile.js';
+import { MidiPack } from '#tools/pack/PackFile.js';
+import UpdateIgnoreList from '#/network/game/server/model/UpdateIgnoreList.js';
 
 const levelExperience = new Int32Array(99);
 
@@ -263,7 +263,7 @@ export default class Player extends PathingEntity {
         sav.p1((this.publicChat << 4) | (this.privateChat << 2) | this.tradeDuel);
 
         // last login info
-        sav.p8(this.lastDate);
+        sav.p8(this.lastLoginTime);
 
         sav.p4(Packet.getcrc(sav.data, 0, sav.pos));
         return sav.data.subarray(0, sav.pos);
@@ -315,22 +315,12 @@ export default class Player extends PathingEntity {
     webClient: boolean = false;
     combatLevel: number = 3;
     headicons: number = 0;
-    appearance: number = -1;
-    lastAppearance: number = 0;
-    lastAppearanceBytes: Uint8Array | null = null;
     baseLevels = new Uint8Array(21);
     lastStats: Int32Array = new Int32Array(21); // we track this so we know to flush stats only once a tick on changes
     lastLevels: Uint8Array = new Uint8Array(21); // we track this so we know to flush stats only once a tick on changes
     originX: number = -1;
     originZ: number = -1;
     buildArea: BuildArea = new BuildArea(this);
-    basReadyAnim: number = -1;
-    basTurnOnSpot: number = -1;
-    basWalkForward: number = -1;
-    basWalkBackward: number = -1;
-    basWalkLeft: number = -1;
-    basWalkRight: number = -1;
-    basRunning: number = -1;
     animProtect: number = 0;
     invListeners: InventoryListener[] = [];
     allowDesign: boolean = false;
@@ -343,15 +333,9 @@ export default class Player extends PathingEntity {
     preventLogoutMessage: string | null = null;
     preventLogoutUntil: number = -1;
 
-    // not stored as a byte buffer so we can write and encrypt opcodes later
-    buffer: OutgoingMessage[] = [];
     lastResponse: number = -1;
     lastConnected: number = -1;
 
-    messageColor: number | null = null;
-    messageEffect: number | null = null;
-    messageType: number | null = null;
-    message: Uint8Array | null = null;
     logMessage: string | null = null;
 
     // ---
@@ -371,6 +355,8 @@ export default class Player extends PathingEntity {
     modalSide = -1;
     lastModalSide = -1;
     modalTutorial = -1;
+    overlay = -1;
+    lastOverlay = -1;
     refreshModal = false;
     refreshModalClose = false;
     requestModalClose = false;
@@ -405,10 +391,31 @@ export default class Player extends PathingEntity {
     socialProtect: boolean = false; // social packet spam protection
     reportAbuseProtect: boolean = false; // social packet spam protection
 
-    lastDate: bigint = 0n;
+    lastLoginTime: bigint = 0n;
+
+    // info updates
+    appearanceInv: number = -1;
+    appearanceBuf: Uint8Array | null = null;
+    lastAppearance: number = 0;
+    readyanim: number = -1;
+    turnanim: number = -1;
+    walkanim: number = -1;
+    walkanim_b: number = -1;
+    walkanim_l: number = -1;
+    walkanim_r: number = -1;
+    runanim: number = -1;
+    chatMessage: Uint8Array | null = null;
+    chatColour: number | null = null;
+    chatEffect: number | null = null;
+    chatRights: number | null = null;
 
     constructor(username: string, username37: bigint, hash64: bigint) {
-        super(0, 3094, 3106, 1, 1, EntityLifeCycle.FOREVER, MoveRestrict.NORMAL, BlockWalk.NPC, MoveStrategy.SMART, PlayerInfoProt.FACE_COORD, PlayerInfoProt.FACE_ENTITY); // tutorial island.
+        super(
+            0, 3094, 3106, // tutorial island
+            1, 1,
+            EntityLifeCycle.FOREVER, MoveRestrict.NORMAL, BlockWalk.NPC, MoveStrategy.SMART, PlayerInfoProt.FACE_COORD, PlayerInfoProt.FACE_ENTITY
+        );
+
         this.username = username;
         this.username37 = username37;
         this.hash64 = hash64;
@@ -436,7 +443,6 @@ export default class Player extends PathingEntity {
         this.activeScript = null;
         this.invListeners.length = 0;
         this.resumeButtons.length = 0;
-        this.buffer = [];
         this.queue.clear();
         this.weakQueue.clear();
         this.engineQueue.clear();
@@ -444,9 +450,9 @@ export default class Player extends PathingEntity {
         this.timers.clear();
         this.heroPoints.clear();
         this.buildArea.clear(false);
-        this.appearance = -1;
+        this.appearanceInv = -1;
         this.lastAppearance = 0;
-        this.lastAppearanceBytes = null;
+        this.appearanceBuf = null;
         this.isActive = false;
     }
 
@@ -457,12 +463,12 @@ export default class Player extends PathingEntity {
         super.resetPathingEntity();
         this.repathed = false;
         this.protect = false;
-        this.messageColor = null;
-        this.messageEffect = null;
-        this.messageType = null;
-        this.message = null;
+        this.chatColour = null;
+        this.chatEffect = null;
+        this.chatRights = null;
+        this.chatMessage = null;
         this.logMessage = null;
-        this.appearance = -1;
+        this.appearanceInv = -1;
         this.socialProtect = false;
         this.reportAbuseProtect = false;
     }
@@ -470,6 +476,7 @@ export default class Player extends PathingEntity {
     // ----
 
     onLogin() {
+        // confirmed order:
         // - rebuild_normal
         // - chat_filter_settings
         // - varp_reset
@@ -481,8 +488,15 @@ export default class Player extends PathingEntity {
         // - runenergy
         // - reset anims
         // - social
+
         this.buildArea.rebuildNormal();
         this.write(new ChatFilterSettings(this.publicChat, this.privateChat, this.tradeDuel));
+
+        // todo: exact order
+        if (!Environment.FRIEND_SERVER) {
+            this.write(new UpdateIgnoreList([]));
+        }
+
         this.write(new IfClose());
         this.write(new UpdateUid192(this.pid, this.members));
         this.write(new ResetClientVarCache());
@@ -651,7 +665,7 @@ export default class Player extends PathingEntity {
 
         if (this.moveSpeed !== MoveSpeed.INSTANT) {
             this.moveSpeed = this.defaultMoveSpeed();
-            if (this.basRunning === -1) {
+            if (this.runanim === -1) {
                 this.moveSpeed = MoveSpeed.WALK;
             } else if (this.tempRun) {
                 this.moveSpeed = MoveSpeed.RUN;
@@ -716,9 +730,23 @@ export default class Player extends PathingEntity {
         }
     }
 
-    closeModal() {
-        this.weakQueue.clear();
+    clearComListeners(root: number) {
+        if (root == -1) {
+            return;
+        }
 
+        for (let i = 0; i < this.invListeners.length; i++) {
+            const { com } = this.invListeners[i];
+            if (Component.get(com).rootLayer === root) {
+                this.invStopListenOnCom(com);
+            }
+        }
+    }
+
+    closeModal(clearWeakQueue: boolean = true) {
+        if (clearWeakQueue) {
+            this.weakQueue.clear();
+        }
         if (!this.delayed) {
             this.protect = false;
         }
@@ -741,6 +769,7 @@ export default class Player extends PathingEntity {
                 this.executeScript(ScriptRunner.init(closeTrigger, this), false);
             }
 
+            this.clearComListeners(this.modalMain);
             this.modalMain = -1;
         }
 
@@ -751,6 +780,7 @@ export default class Player extends PathingEntity {
                 this.executeScript(ScriptRunner.init(closeTrigger, this), false);
             }
 
+            this.clearComListeners(this.modalChat);
             this.modalChat = -1;
         }
 
@@ -761,6 +791,7 @@ export default class Player extends PathingEntity {
                 this.executeScript(ScriptRunner.init(closeTrigger, this), false);
             }
 
+            this.clearComListeners(this.modalSide);
             this.modalSide = -1;
         }
 
@@ -955,7 +986,20 @@ export default class Player extends PathingEntity {
 
         // prio trigger details by target<type<com
         if (this.target instanceof Npc || this.target instanceof Loc || this.target instanceof Obj) {
-            const type = this.target instanceof Npc ? NpcType.get(this.target.type) : this.target instanceof Loc ? LocType.get(this.target.type) : ObjType.get(this.target.type);
+            let type: NpcType | LocType | ObjType | null = null;
+
+            if (this.target instanceof Npc) {
+                type = NpcType.get(this.target.type);
+            } else if (this.target instanceof Loc) {
+                type = LocType.get(this.target.type);
+            } else if (this.target instanceof Obj) {
+                type = ObjType.get(this.target.type);
+            }
+
+            if (!type) {
+                return null;
+            }
+
             typeId = type.id;
             categoryId = type.category;
         }
@@ -976,7 +1020,20 @@ export default class Player extends PathingEntity {
 
         // prio trigger details by target<type<com
         if (this.target instanceof Npc || this.target instanceof Loc || this.target instanceof Obj) {
-            const type = this.target instanceof Npc ? NpcType.get(this.target.type) : this.target instanceof Loc ? LocType.get(this.target.type) : ObjType.get(this.target.type);
+            let type: NpcType | LocType | ObjType | null = null;
+
+            if (this.target instanceof Npc) {
+                type = NpcType.get(this.target.type);
+            } else if (this.target instanceof Loc) {
+                type = LocType.get(this.target.type);
+            } else if (this.target instanceof Obj) {
+                type = ObjType.get(this.target.type);
+            }
+
+            if (!type) {
+                return null;
+            }
+
             typeId = type.id;
             categoryId = type.category;
         }
@@ -1032,9 +1089,11 @@ export default class Player extends PathingEntity {
         if (!Environment.NODE_PRODUCTION && !opTrigger && !apTrigger) {
             let debugname = '_';
             if (this.target instanceof Npc) {
-                debugname = NpcType.get(this.target.type)?.debugname ?? this.target.type.toString();
+                const type = NpcType.get(this.target.type);
+                debugname = type.debugname ?? this.target.type.toString();
             } else if (this.target instanceof Loc) {
-                debugname = LocType.get(this.target.type)?.debugname ?? this.target.type.toString();
+                const type = LocType.get(this.target.type);
+                debugname = type.debugname ?? this.target.type.toString();
             } else if (this.target instanceof Obj) {
                 debugname = ObjType.get(this.target.type)?.debugname ?? this.target.type.toString();
             } else if ((this.targetSubject.com !== -1 && this.targetOp === ServerTriggerType.APNPCT) || this.targetOp === ServerTriggerType.APPLAYERT || this.targetOp === ServerTriggerType.APLOCT || this.targetOp === ServerTriggerType.APOBJT) {
@@ -1269,7 +1328,7 @@ export default class Player extends PathingEntity {
 
         const skippedSlots = [];
 
-        let worn = this.getInventory(this.appearance);
+        let worn = this.getInventory(this.appearanceInv);
         if (!worn) {
             worn = new Inventory(InvType.WORN, 0);
         }
@@ -1318,13 +1377,13 @@ export default class Player extends PathingEntity {
             stream.p1(this.colors[i]);
         }
 
-        stream.p2(this.basReadyAnim);
-        stream.p2(this.basTurnOnSpot);
-        stream.p2(this.basWalkForward);
-        stream.p2(this.basWalkBackward);
-        stream.p2(this.basWalkLeft);
-        stream.p2(this.basWalkRight);
-        stream.p2(this.basRunning);
+        stream.p2(this.readyanim);
+        stream.p2(this.turnanim);
+        stream.p2(this.walkanim);
+        stream.p2(this.walkanim_b);
+        stream.p2(this.walkanim_l);
+        stream.p2(this.walkanim_r);
+        stream.p2(this.runanim);
 
         stream.p8(this.username37);
         stream.p1(this.combatLevel);
@@ -1335,7 +1394,7 @@ export default class Player extends PathingEntity {
         stream.release();
 
         this.lastAppearance = World.currentTick;
-        this.lastAppearanceBytes = appearance;
+        this.appearanceBuf = appearance;
         return appearance;
     }
 
@@ -1395,10 +1454,14 @@ export default class Player extends PathingEntity {
             return;
         }
 
-        const index = this.invListeners.findIndex(l => l.type === inv && l.com === com);
-        if (index !== -1) {
-            // already listening
+        const sameTypeCom = this.invListeners.findIndex(l => l.type === inv && l.com === com);
+        if (sameTypeCom !== -1) {
             return;
+        }
+
+        const sameCom = this.invListeners.findIndex(l => l.com === com);
+        if (sameCom !== -1) {
+            this.invListeners.splice(sameCom, 1);
         }
 
         const invType = InvType.get(inv);
@@ -1653,11 +1716,18 @@ export default class Player extends PathingEntity {
 
     getVar(id: number) {
         const varp = VarPlayerType.get(id);
+        if (!varp) {
+            return 0;
+        }
+
         return varp.type === ScriptVarType.STRING ? this.varsString[varp.id] : this.vars[varp.id];
     }
 
     setVar(id: number, value: number | string) {
         const varp = VarPlayerType.get(id);
+        if (!varp) {
+            return;
+        }
 
         if (varp.type === ScriptVarType.STRING && typeof value === 'string') {
             this.varsString[varp.id] = value;
@@ -1775,7 +1845,7 @@ export default class Player extends PathingEntity {
     }
 
     buildAppearance(inv: number): void {
-        this.appearance = inv;
+        this.appearanceInv = inv;
         this.masks |= PlayerInfoProt.APPEARANCE;
     }
 
@@ -1784,7 +1854,7 @@ export default class Player extends PathingEntity {
             return;
         }
 
-        if (anim == -1 || this.animId == -1 || SeqType.get(anim).priority > SeqType.get(this.animId).priority || SeqType.get(this.animId).priority === 0) {
+        if (anim == -1 || this.animId == -1 || SeqType.get(anim).priority >= SeqType.get(this.animId).priority) {
             this.animId = anim;
             this.animDelay = delay;
             this.masks |= PlayerInfoProt.ANIM;
@@ -1792,9 +1862,9 @@ export default class Player extends PathingEntity {
     }
 
     spotanim(spotanim: number, height: number, delay: number) {
-        this.graphicId = spotanim;
-        this.graphicHeight = height;
-        this.graphicDelay = delay;
+        this.spotanimId = spotanim;
+        this.spotanimHeight = height;
+        this.spotanimTime = delay;
         this.masks |= PlayerInfoProt.SPOT_ANIM;
     }
 
@@ -1807,16 +1877,16 @@ export default class Player extends PathingEntity {
             this.levels[PlayerStat.HITPOINTS] = current - damage;
         }
 
-        if (this.damageSlot % 2 === 1) {
-            this.damageTaken2 = damage;
-            this.damageType2 = type;
+        if (this.hitmarkSlot % 2 === 1) {
+            this.hitmark2Damage = damage;
+            this.hitmark2Type = type;
             this.masks |= PlayerInfoProt.DAMAGE2;
         } else {
-            this.damageTaken = damage;
-            this.damageType = type;
+            this.hitmarkDamage = damage;
+            this.hitmarkType = type;
             this.masks |= PlayerInfoProt.DAMAGE;
         }
-        this.damageSlot++;
+        this.hitmarkSlot++;
     }
 
     setVisibility(visibility: Visibility) {
@@ -1838,7 +1908,7 @@ export default class Player extends PathingEntity {
     }
 
     say(message: string) {
-        this.chat = message;
+        this.sayMessage = message;
         this.masks |= PlayerInfoProt.SAY;
     }
 
@@ -1848,7 +1918,8 @@ export default class Player extends PathingEntity {
 
     // todo: make compiler do this at pack time
     playSong(name: string) {
-        const id = MidiPack.getByName(name.toLowerCase().replaceAll(' ', '_'));
+        // todo: don't rely on MidiPack (server should be runnable using only packed content)
+        const id = MidiPack.getByName(name.toLowerCase().replaceAll(' ', '_').replace(/[^a-z0-9_-]/g, ''));
         if (id !== -1) {
             this.write(new MidiSong(id));
         }
@@ -1881,13 +1952,49 @@ export default class Player extends PathingEntity {
         this.refreshModal = true;
     }
 
+    openOverlay(com: number) {
+        if (this.overlay === com) {
+            return;
+        }
+
+        if (com === -1) {
+            this.clearComListeners(this.overlay);
+        }
+
+        this.overlay = com;
+    }
+
     openChat(com: number) {
+        if ((this.modalState & ModalState.MAIN) !== ModalState.NONE) {
+            this.write(new IfClose());
+            this.modalState &= ~ModalState.MAIN;
+            this.modalChat = -1;
+        }
+
+        if ((this.modalState & ModalState.SIDE) !== ModalState.NONE) {
+            this.write(new IfClose());
+            this.modalState &= ~ModalState.SIDE;
+            this.modalChat = -1;
+        }
+
         this.modalState |= ModalState.CHAT;
         this.modalChat = com;
         this.refreshModal = true;
     }
 
     openSideModal(com: number) {
+        if ((this.modalState & ModalState.MAIN) !== ModalState.NONE) {
+            this.write(new IfClose());
+            this.modalState &= ~ModalState.MAIN;
+            this.modalChat = -1;
+        }
+
+        if ((this.modalState & ModalState.CHAT) !== ModalState.NONE) {
+            this.write(new IfClose());
+            this.modalState &= ~ModalState.CHAT;
+            this.modalSide = -1;
+        }
+
         this.modalState |= ModalState.SIDE;
         this.modalSide = com;
         this.refreshModal = true;
@@ -1900,6 +2007,12 @@ export default class Player extends PathingEntity {
     }
 
     openMainModalSide(top: number, side: number) {
+        if ((this.modalState & ModalState.CHAT) !== ModalState.NONE) {
+            this.write(new IfClose());
+            this.modalState &= ~ModalState.CHAT;
+            this.modalChat = -1;
+        }
+
         this.modalState |= ModalState.MAIN;
         this.modalMain = top;
         this.modalState |= ModalState.SIDE;
@@ -1914,7 +2027,7 @@ export default class Player extends PathingEntity {
         this.exactEndZ = endZ;
         this.exactMoveStart = startCycle;
         this.exactMoveEnd = endCycle;
-        this.exactMoveDirection = direction;
+        this.exactMoveFacing = direction;
         this.masks |= PlayerInfoProt.EXACT_MOVE;
 
         // todo: interpolate over time? instant teleport? verify with true tile on osrs
@@ -2031,7 +2144,7 @@ export default class Player extends PathingEntity {
 
             if ((this.modalState & ModalState.MAIN) === ModalState.NONE) {
                 // close chat dialogues automatically and leave main modals alone
-                this.closeModal();
+                this.closeModal(false);
             }
         }
     }
@@ -2044,16 +2157,12 @@ export default class Player extends PathingEntity {
         }
     }
 
-    write(message: OutgoingMessage) {
+    write(message: ServerGameMessage) {
         if (!isClientConnected(this)) {
             return;
         }
 
-        if (message.priority === ServerProtPriority.IMMEDIATE) {
-            this.writeInner(message);
-        } else {
-            this.buffer.push(message);
-        }
+        this.writeInner(message);
     }
 
     unsetMapFlag() {
@@ -2078,7 +2187,7 @@ export default class Player extends PathingEntity {
     }
 
     lastLoginInfo() {
-        const lastDate: bigint = this.lastDate === 0n ? BigInt(Date.now()) : this.lastDate;
+        const lastDate: bigint = this.lastLoginTime === 0n ? BigInt(Date.now()) : this.lastLoginTime;
         const nextDate: bigint = BigInt(Date.now());
 
         const lastIp = 2130706433; // 127.0.0.1
@@ -2087,7 +2196,7 @@ export default class Player extends PathingEntity {
         const warnMembersInNonMembers: boolean = !Environment.NODE_MEMBERS && this.members;
 
         this.write(new LastLoginInfo(lastIp, daysSinceLogin, daysSinceRecoveriesChanged, this.messageCount, warnMembersInNonMembers));
-        this.lastDate = nextDate;
+        this.lastLoginTime = nextDate;
     }
 
     logout(): void {

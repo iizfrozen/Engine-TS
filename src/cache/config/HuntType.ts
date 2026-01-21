@@ -21,16 +21,6 @@ export default class HuntType extends ConfigType {
         this.parse(dat);
     }
 
-    static async loadAsync(dir: string) {
-        const file = await fetch(`${dir}/server/hunt.dat`);
-        if (!file.ok) {
-            return;
-        }
-
-        const dat = new Packet(new Uint8Array(await file.arrayBuffer()));
-        this.parse(dat);
-    }
-
     static parse(dat: Packet) {
         HuntType.configNames = new Map();
         HuntType.configs = [];
@@ -141,14 +131,14 @@ export default class HuntType extends ConfigType {
             this.checkInv = dat.g2();
             this.checkObj = dat.g2();
             this.checkInvCondition = dat.gjstr();
-            this.checkInvVal = dat.g4();
+            this.checkInvVal = dat.g4s();
         } else if (code === 17) {
             this.checkInv = dat.g2();
             this.checkObjParam = dat.g2();
             this.checkInvCondition = dat.gjstr();
-            this.checkInvVal = dat.g4();
+            this.checkInvVal = dat.g4s();
         } else if (code > 17 && code < 21) {
-            this.checkVars.push({ varId: dat.g2(), condition: dat.gjstr(), val: dat.g4() });
+            this.checkVars.push({ varId: dat.g2(), condition: dat.gjstr(), val: dat.g4s() });
         } else if (code === 250) {
             this.debugname = dat.gjstr();
         } else {

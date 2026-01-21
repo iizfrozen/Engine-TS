@@ -73,7 +73,11 @@ export default abstract class PathingEntity extends Entity {
     targetX: number = -1;
     targetZ: number = -1;
 
-    // info update masks. resets at the end of every tick.
+    // sent on first add
+    faceAngleX: number = -1;
+    faceAngleZ: number = -1;
+
+    // info updates
     masks: number = 0;
     exactStartX: number = -1;
     exactStartZ: number = -1;
@@ -81,23 +85,21 @@ export default abstract class PathingEntity extends Entity {
     exactEndZ: number = -1;
     exactMoveStart: number = -1;
     exactMoveEnd: number = -1;
-    exactMoveDirection: number = -1;
-    faceX: number = -1;
-    faceZ: number = -1;
-    orientationX: number = -1;
-    orientationZ: number = -1;
+    exactMoveFacing: number = -1;
+    faceSquareX: number = -1;
+    faceSquareZ: number = -1;
     faceEntity: number = -1;
-    damageSlot: number = 0;
-    damageTaken: number = -1;
-    damageType: number = -1;
-    damageTaken2: number = -1;
-    damageType2: number = -1;
+    hitmarkSlot: number = 0;
+    hitmarkDamage: number = -1;
+    hitmarkType: number = -1;
+    hitmark2Damage: number = -1;
+    hitmark2Type: number = -1;
     animId: number = -1;
     animDelay: number = -1;
-    chat: string | null = null;
-    graphicId: number = -1;
-    graphicHeight: number = -1;
-    graphicDelay: number = -1;
+    sayMessage: string | null = null;
+    spotanimId: number = -1;
+    spotanimHeight: number = -1;
+    spotanimTime: number = -1;
 
     protected constructor(level: number, x: number, z: number, width: number, length: number, lifecycle: EntityLifeCycle, moveRestrict: MoveRestrict, blockWalk: BlockWalk, moveStrategy: MoveStrategy, coordmask: number, entitymask: number) {
         super(level, x, z, width, length, lifecycle);
@@ -271,7 +273,7 @@ export default abstract class PathingEntity extends Entity {
         }
         level = Math.max(0, Math.min(level, 3));
 
-        if (!isZoneAllocated(level, x, z)) {
+        if (!isZoneAllocated(level, x, z) && (!(this instanceof Player) || this.staffModLevel < 3)) {
             if (this instanceof Player) {
                 this.messageGame('Invalid teleport!');
             }
@@ -323,12 +325,12 @@ export default abstract class PathingEntity extends Entity {
         // set the direction of the player/npc every time an interaction is set.
         // does not necessarily require the coord mask to be sent.
         // direction when the player/npc is first observed (updates on movement)
-        this.orientationX = fineX;
-        this.orientationZ = fineZ;
+        this.faceAngleX = fineX;
+        this.faceAngleZ = fineZ;
         if (client) {
             // direction update (only updates from facesquare or interactions)
-            this.faceX = fineX;
-            this.faceZ = fineZ;
+            this.faceSquareX = fineX;
+            this.faceSquareZ = fineZ;
             this.masks |= this.coordmask;
         }
     }
@@ -337,8 +339,8 @@ export default abstract class PathingEntity extends Entity {
      * Face and orient back to the default south.
      */
     unfocus(): void {
-        this.orientationX = CoordGrid.fine(this.x, this.width);
-        this.orientationZ = CoordGrid.fine(this.z - 1, this.length);
+        this.faceAngleX = CoordGrid.fine(this.x, this.width);
+        this.faceAngleZ = CoordGrid.fine(this.z - 1, this.length);
     }
 
     /**
@@ -488,22 +490,6 @@ export default abstract class PathingEntity extends Entity {
                 return;
             }
             if (this.target instanceof PathingEntity) {
-                if (this.width > 1 && !CoordGrid.intersects(this.x, this.z, this.width, this.length, this.target.x, this.target.z, this.target.width, this.target.length)) {
-                    // west/east
-                    let dir = CoordGrid.face(this.x, 0, this.target.x, 0);
-                    const distanceToTarget = CoordGrid.distanceTo({ x: this.x, z: this.z, width: this.width, length: this.length }, { x: this.target.x, z: this.target.z, width: this.target.width, length: this.target.length });
-                    if (canTravel(this.level, this.x, this.z, CoordGrid.deltaX(dir), 0, this.width, extraFlag, collisionStrategy) || distanceToTarget <= 1) {
-                        this.queueWaypoint(CoordGrid.moveX(this.x, dir), this.z);
-                        return;
-                    }
-                    // north/south
-                    dir = CoordGrid.face(0, this.z, 0, this.target.z);
-                    if (canTravel(this.level, this.x, this.z, 0, CoordGrid.deltaZ(dir), this.width, extraFlag, collisionStrategy)) {
-                        this.queueWaypoint(this.x, CoordGrid.moveZ(this.z, dir));
-                        return;
-                    }
-                    return;
-                }
                 this.queueWaypoints(findNaivePath(this.level, this.x, this.z, this.target.x, this.target.z, this.width, this.length, this.target.width, this.target.length, extraFlag, collisionStrategy));
             } else {
                 this.queueWaypoint(this.target.x, this.target.z);
@@ -611,22 +597,22 @@ export default abstract class PathingEntity extends Entity {
         this.exactEndZ = -1;
         this.exactMoveStart = -1;
         this.exactMoveEnd = -1;
-        this.exactMoveDirection = -1;
+        this.exactMoveFacing = -1;
         this.animId = -1;
         this.animDelay = -1;
         this.animId = -1;
         this.animDelay = -1;
-        this.chat = null;
-        this.damageTaken = -1;
-        this.damageType = -1;
-        this.damageTaken2 = -1;
-        this.damageType2 = -1;
-        this.damageSlot = 0;
-        this.graphicId = -1;
-        this.graphicHeight = -1;
-        this.graphicDelay = -1;
-        this.faceX = -1;
-        this.faceZ = -1;
+        this.sayMessage = null;
+        this.hitmarkDamage = -1;
+        this.hitmarkType = -1;
+        this.hitmark2Damage = -1;
+        this.hitmark2Type = -1;
+        this.hitmarkSlot = 0;
+        this.spotanimId = -1;
+        this.spotanimHeight = -1;
+        this.spotanimTime = -1;
+        this.faceSquareX = -1;
+        this.faceSquareZ = -1;
 
         if (!this.target && this.faceEntity !== -1) {
             this.masks |= this.entitymask;
@@ -642,19 +628,6 @@ export default abstract class PathingEntity extends Entity {
             return null;
         }
 
-        const srcX: number = this.x;
-        const srcZ: number = this.z;
-
-        const { x, z } = CoordGrid.unpackCoord(this.waypoints[this.waypointIndex]);
-        const dir: number = CoordGrid.face(srcX, srcZ, x, z);
-        const dx: number = CoordGrid.deltaX(dir);
-        const dz: number = CoordGrid.deltaZ(dir);
-
-        // check if moved off current pos.
-        if (dx == 0 && dz == 0) {
-            return -1;
-        }
-
         const collisionStrategy: CollisionType | null = this.getCollisionStrategy();
         if (collisionStrategy === null) {
             // nomove moverestrict returns as null = no walking allowed.
@@ -667,12 +640,34 @@ export default abstract class PathingEntity extends Entity {
             return -1;
         }
 
-        if (this.moveStrategy === MoveStrategy.FLY) {
-            return dir;
+        const srcX: number = this.x;
+        const srcZ: number = this.z;
+
+        const { x, z } = CoordGrid.unpackCoord(this.waypoints[this.waypointIndex]);
+
+        if (this.width > 1) {
+            const tryDirX = CoordGrid.face(srcX, 0, x, 0);
+            if (canTravel(this.level, srcX, srcZ, CoordGrid.deltaX(tryDirX), 0, this.width, extraFlag, collisionStrategy)) {
+                return tryDirX;
+            }
+            const tryDirZ = CoordGrid.face(0, srcZ, 0, z);
+            if (canTravel(this.level, srcX, srcZ, 0, CoordGrid.deltaZ(tryDirZ), this.width, extraFlag, collisionStrategy)) {
+                return tryDirZ;
+            }
+            return -1;
         }
 
-        if (!Environment.NODE_MEMBERS && !World.gameMap.isFreeToPlay(this.x + dx, this.z + dz)) {
+        const dir: number = CoordGrid.face(srcX, srcZ, x, z);
+        const dx: number = CoordGrid.deltaX(dir);
+        const dz: number = CoordGrid.deltaZ(dir);
+
+        // check if moved off current pos.
+        if (dx == 0 && dz == 0) {
             return -1;
+        }
+
+        if (this.moveStrategy === MoveStrategy.FLY) {
+            return dir;
         }
 
         // check current direction if can travel to chosen dest.

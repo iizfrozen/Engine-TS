@@ -1,10 +1,9 @@
-import { ServerProtPriority } from '#/network/game/server/codec/ServerProtPriority.js';
-import OutgoingMessage from '#/network/game/server/OutgoingMessage.js';
+import ServerGameMessage from '#/network/game/server/ServerGameMessage.js';
 
-export default class MidiSong extends OutgoingMessage {
-    priority = ServerProtPriority.BUFFERED;
-
-    constructor(readonly id: number) {
+export default class MidiSong extends ServerGameMessage {
+    constructor(
+        readonly id: number
+    ) {
         super();
     }
 }

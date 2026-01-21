@@ -13,14 +13,19 @@ import Packet from '#/io/Packet.js';
 import Environment from '#/util/Environment.js';
 import { toSafeName } from '#/util/JString.js';
 import { printInfo } from '#/util/Logger.js';
-import { getUnreadMessageCount } from '#/util/Messages.js';
+import { getUnreadMessageCount } from '#/server/login/Messages.js';
 import { startManagementWeb } from '#/web.js';
+import InvType from '#/cache/config/InvType.js';
 
-async function updateHiscores(account: { id: number, staffmodlevel: number } | undefined, player: Player, profile: string) {
+async function updateHiscores(account: { id: number, staffmodlevel: number, banned_until: string | null } | undefined, player: Player, profile: string) {
     if (!account)
         return;
 
     if (account.staffmodlevel > 1) {
+        return;
+    }
+
+    if (account.banned_until !== null && new Date(account.banned_until) >= new Date()) {
         return;
     }
 
@@ -45,7 +50,8 @@ async function updateHiscores(account: { id: number, staffmodlevel: number } | u
             .set({
                 type: 0,
                 level: totalLevel,
-                value: totalXp
+                value: totalXp,
+                date: toDbDate(new Date())
             })
             .where('account_id', '=', account.id)
             .where('type', '=', 0)
@@ -78,7 +84,8 @@ async function updateHiscores(account: { id: number, staffmodlevel: number } | u
                 update.push({
                     type: hiscoreType,
                     level: player.baseLevels[stat],
-                    value: player.stats[stat]
+                    value: player.stats[stat],
+                    date: toDbDate(new Date())
                 });
             } else if (!existing) {
                 insert.push({
@@ -139,6 +146,8 @@ export default class LoginServer {
             startManagementWeb();
         }
 
+        InvType.load('data/pack');
+
         this.server = new WebSocketServer({ port: Environment.LOGIN_PORT, host: '0.0.0.0' }, () => {
             printInfo(`Login server listening on port ${Environment.LOGIN_PORT}`);
         });
@@ -160,7 +169,7 @@ export default class LoginServer {
                             .where('profile', '=', profile)
                             .execute();
                     } else if (type === 'player_login') {
-                        const { replyTo, username, password, uid, socket, remoteAddress, reconnecting, hasSave } = msg;
+                        const { nodeMembers, replyTo, username, password, uid, socket, remoteAddress, reconnecting, hasSave } = msg;
                         const safeName = toSafeName(username);
                         
                         if (this.loginRequests.has(safeName)) {
@@ -280,7 +289,7 @@ export default class LoginServer {
                                 return;
                             }
 
-                            if (Environment.NODE_MEMBERS && !account.members) {
+                            if (nodeMembers && !account.members) {
                                 if (Environment.NODE_AUTO_SUBSCRIBE_MEMBERS) {
                                     // Set members=1 for the account and proceed with login
                                     await db.updateTable('account').where('id', '=', account.id).set('members', 1).executeTakeFirstOrThrow();

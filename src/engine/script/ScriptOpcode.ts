@@ -115,14 +115,13 @@ export const enum ScriptOpcode {
     IF_OPENCHAT,
     TUT_OPEN,
     IF_OPENMAIN,
-    // IF_OPENOVERLAY comes later
+    IF_OPENOVERLAY,
     IF_OPENMAIN_SIDE,
     IF_OPENSIDE,
     IF_SETANIM, // official
     IF_SETCOLOUR, // official
     IF_SETHIDE, // official
     IF_SETMODEL, // official
-    IF_SETRECOL,
     IF_SETNPCHEAD, // official
     IF_SETOBJECT, // official
     IF_SETPLAYERHEAD, // official
@@ -206,6 +205,10 @@ export const enum ScriptOpcode {
     WEALTH_EVENT, // custom
     P_RUN, // todo: real command name?
     PLAYERMEMBER, // official
+    QUEUEVARARG,
+    LONGQUEUEVARARG,
+    WEAKQUEUEVARARG,
+    STRONGQUEUEVARARG,
 
     // Npc ops (2500-2999)
     NPC_ADD = 2500, // official
@@ -295,6 +298,7 @@ export const enum ScriptOpcode {
     NC_OP,
     NC_PARAM,
     NC_SIZE,
+    NC_VISLEVEL,
 
     // Loc config ops (4100-4199)
     LC_CATEGORY = 4100,
@@ -565,12 +569,12 @@ export const ScriptOpcodeMap: Map<string, number> = new Map([
     ['TUT_OPEN', ScriptOpcode.TUT_OPEN],
     ['IF_OPENMAIN', ScriptOpcode.IF_OPENMAIN],
     ['IF_OPENMAIN_SIDE', ScriptOpcode.IF_OPENMAIN_SIDE],
+    ['IF_OPENOVERLAY', ScriptOpcode.IF_OPENOVERLAY],
     ['IF_OPENSIDE', ScriptOpcode.IF_OPENSIDE],
     ['IF_SETANIM', ScriptOpcode.IF_SETANIM],
     ['IF_SETCOLOUR', ScriptOpcode.IF_SETCOLOUR],
     ['IF_SETHIDE', ScriptOpcode.IF_SETHIDE],
     ['IF_SETMODEL', ScriptOpcode.IF_SETMODEL],
-    ['IF_SETRECOL', ScriptOpcode.IF_SETRECOL],
     ['IF_SETNPCHEAD', ScriptOpcode.IF_SETNPCHEAD],
     ['IF_SETOBJECT', ScriptOpcode.IF_SETOBJECT],
     ['IF_SETPLAYERHEAD', ScriptOpcode.IF_SETPLAYERHEAD],
@@ -589,6 +593,7 @@ export const ScriptOpcodeMap: Map<string, number> = new Map([
     ['LAST_USEITEM', ScriptOpcode.LAST_USEITEM],
     ['LAST_USESLOT', ScriptOpcode.LAST_USESLOT],
     ['LONGQUEUE', ScriptOpcode.LONGQUEUE],
+    ['LONGQUEUE*', ScriptOpcode.LONGQUEUEVARARG],
     ['MES', ScriptOpcode.MES],
     ['MIDI_JINGLE', ScriptOpcode.MIDI_JINGLE],
     ['MIDI_SONG', ScriptOpcode.MIDI_SONG],
@@ -617,6 +622,7 @@ export const ScriptOpcodeMap: Map<string, number> = new Map([
     ['PLAYER_FINDALLZONE', ScriptOpcode.PLAYER_FINDALLZONE],
     ['PLAYER_FINDNEXT', ScriptOpcode.PLAYER_FINDNEXT],
     ['QUEUE', ScriptOpcode.QUEUE],
+    ['QUEUE*', ScriptOpcode.QUEUEVARARG],
     ['SAY', ScriptOpcode.SAY],
     ['WALKTRIGGER', ScriptOpcode.WALKTRIGGER],
     ['SETTIMER', ScriptOpcode.SETTIMER],
@@ -633,8 +639,10 @@ export const ScriptOpcodeMap: Map<string, number> = new Map([
     ['STAT_DRAIN', ScriptOpcode.STAT_DRAIN],
     ['STAT_RANDOM', ScriptOpcode.STAT_RANDOM],
     ['STRONGQUEUE', ScriptOpcode.STRONGQUEUE],
+    ['STRONGQUEUE*', ScriptOpcode.STRONGQUEUEVARARG],
     ['UID', ScriptOpcode.UID],
     ['WEAKQUEUE', ScriptOpcode.WEAKQUEUE],
+    ['WEAKQUEUE*', ScriptOpcode.WEAKQUEUEVARARG],
     ['IF_OPENMAINOVERLAY', ScriptOpcode.IF_OPENMAINOVERLAY],
     ['AFK_EVENT', ScriptOpcode.AFK_EVENT],
     ['LOWMEMORY', ScriptOpcode.LOWMEMORY],
@@ -735,6 +743,7 @@ export const ScriptOpcodeMap: Map<string, number> = new Map([
     ['NC_OP', ScriptOpcode.NC_OP],
     ['NC_PARAM', ScriptOpcode.NC_PARAM],
     ['NC_SIZE', ScriptOpcode.NC_SIZE],
+    ['NC_VISLEVEL', ScriptOpcode.NC_VISLEVEL],
     ['LC_CATEGORY', ScriptOpcode.LC_CATEGORY],
     ['LC_DEBUGNAME', ScriptOpcode.LC_DEBUGNAME],
     ['LC_DESC', ScriptOpcode.LC_DESC],

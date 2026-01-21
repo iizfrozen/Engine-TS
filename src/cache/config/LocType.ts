@@ -8,7 +8,6 @@ import Jagfile from '#/io/Jagfile.js';
 import Packet from '#/io/Packet.js';
 import { printFatalError } from '#/util/Logger.js';
 
-
 export default class LocType extends ConfigType {
     static configNames: Map<string, number> = new Map();
     static configs: LocType[] = [];
@@ -23,16 +22,6 @@ export default class LocType extends ConfigType {
         this.parse(server, jag);
     }
 
-    static async loadAsync(dir: string) {
-        const file = await fetch(`${dir}/server/loc.dat`);
-        if (!file.ok) {
-            return;
-        }
-
-        const [server, jag] = await Promise.all([file.arrayBuffer(), Jagfile.loadAsync(`${dir}/client/config`)]);
-        this.parse(new Packet(new Uint8Array(server)), jag);
-    }
-
     static parse(server: Packet, jag: Jagfile) {
         LocType.configNames = new Map();
         LocType.configs = [];
@@ -44,17 +33,9 @@ export default class LocType extends ConfigType {
 
         for (let id = 0; id < count; id++) {
             const config = new LocType(id);
-            config.active = -1; // so we can infer if active should be automatically determined based on loc shape/ops available
             config.decodeType(server);
             config.decodeType(client);
-
-            if (config.active === -1 && config.shapes) {
-                config.active = config.shapes.length > 0 && config.shapes[0] === 10 ? 1 : 0;
-
-                if (config.op && config.op.length > 0) {
-                    config.active = 1;
-                }
-            }
+            config.postDecode();
 
             LocType.configs[id] = config;
 
@@ -86,6 +67,7 @@ export default class LocType extends ConfigType {
     }
 
     // ----
+
     models: Uint16Array | null = null;
     shapes: Uint8Array | null = null;
     name: string | null = null;
@@ -96,7 +78,7 @@ export default class LocType extends ConfigType {
     length = 1;
     blockwalk = true;
     blockrange = true;
-    active = 0; // not -1 here just in case an new LocType is created, we want to default to "false"
+    active = -1;
     hillskew = false;
     sharelight = false;
     occlude = false;
@@ -114,9 +96,9 @@ export default class LocType extends ConfigType {
     resizey = 128;
     resizez = 128;
     forceapproach = 0;
-    xoff = 0;
-    yoff = 0;
-    zoff = 0;
+    offsetx = 0;
+    offsety = 0;
+    offsetz = 0;
     forcedecor = false;
 
     // server-side
@@ -201,11 +183,11 @@ export default class LocType extends ConfigType {
         } else if (code === 69) {
             this.forceapproach = dat.g1();
         } else if (code === 70) {
-            this.xoff = dat.g2s();
+            this.offsetx = dat.g2s();
         } else if (code === 71) {
-            this.yoff = dat.g2s();
+            this.offsety = dat.g2s();
         } else if (code === 72) {
-            this.zoff = dat.g2s();
+            this.offsetz = dat.g2s();
         } else if (code === 73) {
             this.forcedecor = true;
         } else if (code === 249) {
@@ -214,6 +196,20 @@ export default class LocType extends ConfigType {
             this.debugname = dat.gjstr();
         } else {
             printFatalError(`Unrecognized loc config code: ${code}\nThis error comes from the packed data being out of sync, try running ` + kleur.green().bold('npm run build') + ', then restarting this.');
+        }
+    }
+
+    postDecode() {
+        if (this.active === -1) {
+            this.active = 0;
+
+            if (this.shapes && this.shapes.length === 1 && this.shapes[0] === 10) {
+                this.active = 1;
+            }
+
+            if (this.op !== null) {
+                this.active = 1;
+            }
         }
     }
 }

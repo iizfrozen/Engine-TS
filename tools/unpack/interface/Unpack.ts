@@ -5,14 +5,34 @@ import Jagfile from '#/io/Jagfile.js';
 import Packet from '#/io/Packet.js';
 import Environment from '#/util/Environment.js';
 import { printFatalError, printWarning } from '#/util/Logger.js';
-import { PackFile } from '#/util/PackFileBase.js';
-import { listFilesExt } from '#/util/Parse.js';
+import { listFilesExt } from '#tools/pack/Parse.js';
+import { InterfacePack, ModelPack, ObjPack, SeqPack, VarpPack } from '#tools/pack/PackFile.js';
 
-export const InterfacePack = new PackFile('interface');
-export const ObjPack = new PackFile('obj');
-export const SeqPack = new PackFile('seq');
-export const VarpPack = new PackFile('varp');
-export const ModelPack = new PackFile('model');
+function renameModel(id: number) {
+    const existingFiles = listFilesExt(`${Environment.BUILD_SRC_DIR}/models`, '.ob2');
+
+    let model = ModelPack.getById(id);
+    if (model.startsWith('model_')) {
+        let name = 'com_i1';
+        let i = 2;
+        while (ModelPack.getByName(name) !== -1) {
+            name = `com_i${i}`;
+            i++;
+        }
+
+        const filePath = existingFiles.find(x => x.endsWith(`/${model}.ob2`));
+        if (filePath) {
+            fs.renameSync(filePath, `${Environment.BUILD_SRC_DIR}/models/com/${name}.ob2`);
+        } else {
+            console.error('Model not found on filesystem', 'com', model);
+        }
+
+        model = name;
+        ModelPack.register(id, model);
+    }
+
+    return model;
+}
 
 const enum ComponentType {
     TYPE_LAYER = 0,
@@ -53,8 +73,8 @@ const STATS = [
     'herblore',
     'agility',
     'thieving',
-    'stat18',
-    'stat19',
+    'slayer',
+    'farming',
     'runecraft'
 ];
 
@@ -90,7 +110,7 @@ class IfType {
             com.clientCode = dat.g2();
             com.width = dat.g2();
             com.height = dat.g2();
-            com.alpha = dat.g1();
+            com.trans = dat.g1();
 
             com.overLayer = dat.g1();
             if (com.overLayer === 0) {
@@ -191,12 +211,12 @@ class IfType {
             }
 
             if (com.comType === ComponentType.TYPE_UNUSED || com.comType === ComponentType.TYPE_RECT || com.comType === ComponentType.TYPE_TEXT) {
-                com.colour = dat.g4();
+                com.colour = dat.g4s();
             }
 
             if (com.comType === ComponentType.TYPE_RECT || com.comType === ComponentType.TYPE_TEXT) {
-                com.activeColour = dat.g4();
-                com.overColour = dat.g4();
+                com.activeColour = dat.g4s();
+                com.overColour = dat.g4s();
             }
 
             if (com.comType === ComponentType.TYPE_GRAPHIC) {
@@ -239,7 +259,7 @@ class IfType {
                 com.font = dat.g1();
 
                 com.shadowed = dat.gbool();
-                com.colour = dat.g4();
+                com.colour = dat.g4s();
                 com.marginX = dat.g2s();
                 com.marginY = dat.g2s();
                 com.interactable = dat.gbool();
@@ -278,7 +298,6 @@ class IfType {
         for (let id = 0; id < IfType.count; id++) {
             const com = IfType.instances[id];
             if (!com) {
-                InterfacePack.register(id, 'null:null');
                 continue;
             }
 
@@ -302,7 +321,11 @@ class IfType {
             }
 
             const name = InterfacePack.getById(com.id);
-            if (!name || name.split(':')[1].startsWith('com_')) {
+            const [_parentName, comName] = name.split(':');
+            if (name && typeof comName === 'undefined') {
+                printFatalError(`Issue with component ${com.id} must be manually resolved`);
+            }
+            if (!name || (typeof comName !== 'undefined' && comName.startsWith('com_'))) {
                 InterfacePack.register(com.id, `${InterfacePack.getById(com.rootLayer)}:com_${comCount[com.rootLayer]}`);
             }
             comCount[com.rootLayer]++;
@@ -365,6 +388,9 @@ class IfType {
                 case 7:
                     temp.push('type=invtext');
                     break;
+                case 8:
+                    temp.push('type=8');
+                    break;
                 default:
                     printWarning(`Unknown comType: ${this.comType} when packing ${this.id} ${InterfacePack.getById(this.id)}`);
                     break;
@@ -406,16 +432,10 @@ class IfType {
                 temp.push(`height=${this.height}`);
             }
 
-            if (this.alpha) {
-                temp.push(`alpha=${this.alpha}`);
-            }
-
             if (this.overLayer !== -1) {
                 temp.push(`overlayer=${InterfacePack.getById(this.overLayer).split(':')[1]}`);
             }
         }
-
-        // todo: scripts
 
         if (this.script) {
             for (let i = 0; i < this.script.length; i++) {
@@ -477,10 +497,10 @@ class IfType {
                         case 7:
                             str += 'op7';
                             break;
-                        case 8:
+                        case 8: // combat level
                             str += 'op8';
                             break;
-                        case 9:
+                        case 9: // total level
                             str += 'op9';
                             break;
                         case 10: {
@@ -501,32 +521,38 @@ class IfType {
                             str += `testbit,${VarpPack.getById(varp) || 'varp_' + varp},${bit}`;
                             break;
                         }
+                        default:
+                            printFatalError('Unknown script opcode: ' + op);
+                            break;
                     }
 
                     temp.push(str);
                 }
+            }
+        }
 
-                if (this.scriptComparator && this.scriptComparator[i] && this.scriptOperand) {
-                    let str = `script${i + 1}=`;
+        if (this.scriptComparator && this.scriptOperand) {
+            // script can be absent if the comparator was left in
+            for (let i = 0; i < this.scriptComparator.length; i++) {
+                let str = `script${i + 1}=`;
 
-                    switch (this.scriptComparator[i]) {
-                        case 1:
-                            str += 'eq';
-                            break;
-                        case 2:
-                            str += 'lt';
-                            break;
-                        case 3:
-                            str += 'gt';
-                            break;
-                        case 4:
-                            str += 'neq';
-                            break;
-                    }
-
-                    str += `,${this.scriptOperand[i]}`;
-                    temp.push(str);
+                switch (this.scriptComparator[i]) {
+                    case 1:
+                        str += 'eq';
+                        break;
+                    case 2:
+                        str += 'lt';
+                        break;
+                    case 3:
+                        str += 'gt';
+                        break;
+                    case 4:
+                        str += 'neq';
+                        break;
                 }
+
+                str += `,${this.scriptOperand[i]}`;
+                temp.push(str);
             }
         }
 
@@ -559,7 +585,7 @@ class IfType {
 
             if (this.invSlotSprite && this.invSlotOffsetX && this.invSlotOffsetY) {
                 for (let i = 0; i < 20; i++) {
-                    if (this.invSlotSprite[i]) {
+                    if (typeof this.invSlotSprite[i] !== 'undefined') {
                         if (this.invSlotOffsetX[i] || this.invSlotOffsetY[i]) {
                             temp.push(`slot${i + 1}=${this.invSlotSprite[i]}:${this.invSlotOffsetX[i]},${this.invSlotOffsetY[i]}`);
                         } else {
@@ -647,11 +673,11 @@ class IfType {
 
         if (this.comType === 6) {
             if (this.model) {
-                temp.push(`model=${ModelPack.getById(this.model) || 'model_' + this.model}`);
+                temp.push(`model=${renameModel(this.model)}`);
             }
 
             if (this.activeModel) {
-                temp.push(`activemodel=${ModelPack.getById(this.activeModel) || 'model_' + this.activeModel}`);
+                temp.push(`activemodel=${renameModel(this.activeModel)}`);
             }
 
             if (this.anim !== -1) {
@@ -709,7 +735,7 @@ class IfType {
 
             if (this.invSlotSprite && this.invSlotOffsetX && this.invSlotOffsetY) {
                 for (let i = 0; i < 20; i++) {
-                    if (this.invSlotSprite[i]) {
+                    if (typeof this.invSlotSprite[i] !== 'undefined') {
                         if (this.invSlotOffsetX[i] || this.invSlotOffsetY[i]) {
                             temp.push(`slot${i + 1}=${this.invSlotSprite[i]}:${this.invSlotOffsetX[i]},${this.invSlotOffsetY[i]}`);
                         } else {
@@ -787,7 +813,7 @@ class IfType {
     clientCode: number = 0;
     width: number = 0;
     height: number = 0;
-    alpha: number = 0;
+    trans: number = 0;
     overLayer: number = -1;
     scriptComparator: Uint8Array | null = null;
     scriptOperand: Uint16Array | null = null;
@@ -838,6 +864,12 @@ if (!interfaceData) {
     process.exit(1);
 }
 
+if (!fs.existsSync(`${Environment.BUILD_SRC_DIR}/models/com`)) {
+    fs.mkdirSync(`${Environment.BUILD_SRC_DIR}/models/com`, { recursive: true });
+}
+
 IfType.unpack(new Jagfile(new Packet(interfaceData)));
 IfType.exportOrder();
 IfType.exportSrc();
+
+ModelPack.save();

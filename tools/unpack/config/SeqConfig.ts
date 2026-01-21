@@ -1,5 +1,5 @@
 import { printWarning } from '#/util/Logger.js';
-import { AnimPack, ObjPack, SeqPack } from '#/util/PackFile.js';
+import { AnimPack, ObjPack, SeqPack } from '#tools/pack/PackFile.js';
 
 import { ConfigIdx } from './Common.js';
 
@@ -52,38 +52,40 @@ export function unpackSeqConfig(config: ConfigIdx, id: number): string[] {
                 }
             }
         } else if (code === 2) {
-            const replayoff = dat.g2();
-            def.push(`replayoff=${replayoff}`);
+            const loops = dat.g2();
+            def.push(`loops=${loops}`);
         } else if (code === 3) {
             const count = dat.g1();
 
+            const labels: string[] = [];
             for (let i = 0; i < count; i++) {
-                const index = i + 1;
                 const walkmerge = dat.g1();
-                def.push(`walkmerge${index}=label_${walkmerge}`);
+                labels.push(`label_${walkmerge}`);
             }
+
+            def.push(`walkmerge=${labels.join(',')}`);
         } else if (code === 4) {
             def.push('stretches=yes');
         } else if (code === 5) {
             const priority = dat.g1();
             def.push(`priority=${priority}`);
         } else if (code === 6) {
-            const righthand = dat.g2();
-            if (righthand === 0) {
-                def.push('righthand=hide');
+            const replaceheldleft = dat.g2();
+            if (replaceheldleft === 0) {
+                def.push('replaceheldleft=hide');
             } else {
-                def.push(`righthand=${ObjPack.getById(righthand - 512)}`);
+                def.push(`replaceheldleft=${ObjPack.getById(replaceheldleft - 512)}`);
             }
         } else if (code === 7) {
-            const lefthand = dat.g2();
-            if (lefthand === 0) {
-                def.push('lefthand=hide');
+            const replaceheldright = dat.g2();
+            if (replaceheldright === 0) {
+                def.push('replaceheldright=hide');
             } else {
-                def.push(`lefthand=${ObjPack.getById(lefthand - 512)}`);
+                def.push(`replaceheldright=${ObjPack.getById(replaceheldright - 512)}`);
             }
         } else if (code === 8) {
-            const replaycount = dat.g1();
-            def.push(`replaycount=${replaycount}`);
+            const maxloops = dat.g1();
+            def.push(`maxloops=${maxloops}`);
         } else if (code === 9) {
             const preanim_move = dat.g1();
 
@@ -109,15 +111,20 @@ export function unpackSeqConfig(config: ConfigIdx, id: number): string[] {
             }
             def.push(`postanim_move=${op}`);
         } else if (code === 11) {
-            const restart_mode = dat.g1();
+            const duplicatebehavior = dat.g1();
 
-            let op = restart_mode.toString();
-            if (restart_mode === 1) {
+            let op = duplicatebehavior.toString();
+            if (duplicatebehavior === 0) {
+                op = '0';
+            } else if (duplicatebehavior === 1) {
                 op = 'reset';
-            } else if (restart_mode === 2) {
+            } else if (duplicatebehavior === 2) {
                 op = 'reset_loop';
             }
-            def.push(`restart_mode=${op}`);
+            def.push(`duplicatebehavior=${op}`);
+        } else if (code === 12) {
+            const code12 = dat.g4s();
+            def.push(`code12=${code12}`);
         } else {
             printWarning(`unknown seq code ${code}`);
         }
