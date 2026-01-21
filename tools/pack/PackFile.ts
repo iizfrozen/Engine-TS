@@ -215,10 +215,12 @@ export const SpotAnimPack = new PackFile('spotanim', validateConfigPack, '.spota
 export const StructPack = new PackFile('struct', validateConfigPack, '.struct');
 export const TexturePack = new PackFile('texture', validateImagePack, `${Environment.BUILD_SRC_DIR}/textures`, '.png');
 export const VarpPack = new PackFile('varp', validateConfigPack, '.varp', true);
+export const VarbitPack = new PackFile('varbit', validateConfigPack, '.varbit', true);
 export const VarnPack = new PackFile('varn', validateConfigPack, '.varn');
 export const VarsPack = new PackFile('vars', validateConfigPack, '.vars');
 
 export function revalidatePack() {
+    AnimSetPack.reload();
     AnimPack.reload();
     BasePack.reload();
     CategoryPack.reload();
@@ -232,6 +234,8 @@ export function revalidatePack() {
     InvPack.reload();
     LocPack.reload();
     MesAnimPack.reload();
+    MapPack.reload();
+    MidiPack.reload();
     ModelPack.reload();
     NpcPack.reload();
     ObjPack.reload();
@@ -245,6 +249,7 @@ export function revalidatePack() {
     VarpPack.reload();
     VarnPack.reload();
     VarsPack.reload();
+    VarbitPack.reload();
 }
 
 export function crawlConfigNames(ext: string, includeBrackets = false) {

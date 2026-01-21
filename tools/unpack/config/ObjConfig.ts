@@ -38,7 +38,7 @@ function renameModel(id: number, name: string) {
     return model;
 }
 
-export function unpackObjConfig(config: ConfigIdx, id: number): string[] {
+export function unpackObjConfig(config: ConfigIdx, id: number, compare?: ConfigIdx, modelRenameOffset?: number): string[] {
     const { dat, pos, len } = config;
     dat.pos = pos[id];
 
@@ -61,8 +61,13 @@ export function unpackObjConfig(config: ConfigIdx, id: number): string[] {
 
             modelIds.push(modelId);
 
-            const model = renameModel(modelId, debugname);
-            def.push(`model=${model}`);
+            if ((compare && id < compare.size) || modelId < modelRenameOffset!) {
+                const model = ModelPack.getById(modelId);
+                def.push(`model=${model}`);
+            } else {
+                const model = renameModel(modelId, debugname);
+                def.push(`model=${model}`);
+            }
         } else if (code === 2) {
             const name = dat.gjstr();
             def.push(`name=${name}`);
@@ -104,30 +109,50 @@ export function unpackObjConfig(config: ConfigIdx, id: number): string[] {
 
             modelIds.push(modelId);
 
-            const model = renameModel(modelId, `${debugname}_manwear`);
-            def.push(`manwear=${model},${offset}`);
+            if ((compare && id < compare.size) || modelId < modelRenameOffset!) {
+                const model = ModelPack.getById(modelId);
+                def.push(`manwear=${model},${offset}`);
+            } else {
+                const model = renameModel(modelId, `${debugname}_manwear`);
+                def.push(`manwear=${model},${offset}`);
+            }
         } else if (code === 24) {
             const modelId = dat.g2();
 
             modelIds.push(modelId);
 
-            const model = renameModel(modelId, `${debugname}_manwear2`);
-            def.push(`manwear2=${model}`);
+            if ((compare && id < compare.size) || modelId < modelRenameOffset!) {
+                const model = ModelPack.getById(modelId);
+                def.push(`manwear2=${model}`);
+            } else {
+                const model = renameModel(modelId, `${debugname}_manwear2`);
+                def.push(`manwear2=${model}`);
+            }
         } else if (code === 25) {
             const modelId = dat.g2();
             const offset = dat.g1b();
 
             modelIds.push(modelId);
 
-            const model = renameModel(modelId, `${debugname}_womanwear`);
-            def.push(`womanwear=${model},${offset}`);
+            if ((compare && id < compare.size) || modelId < modelRenameOffset!) {
+                const model = ModelPack.getById(modelId);
+                def.push(`womanwear=${model},${offset}`);
+            } else {
+                const model = renameModel(modelId, `${debugname}_womanwear`);
+                def.push(`womanwear=${model},${offset}`);
+            }
         } else if (code === 26) {
             const modelId = dat.g2();
 
             modelIds.push(modelId);
 
-            const model = renameModel(modelId, `${debugname}_womanwear2`);
-            def.push(`womanwear2=${model}`);
+            if ((compare && id < compare.size) || modelId < modelRenameOffset!) {
+                const model = ModelPack.getById(modelId);
+                def.push(`womanwear2=${model}`);
+            } else {
+                const model = renameModel(modelId, `${debugname}_womanwear2`);
+                def.push(`womanwear2=${model}`);
+            }
         } else if (code >= 30 && code < 35) {
             const index = (code - 30) + 1;
             const op = dat.gjstr();
@@ -148,43 +173,73 @@ export function unpackObjConfig(config: ConfigIdx, id: number): string[] {
 
             modelIds.push(modelId);
 
-            const model = renameModel(modelId, `${debugname}_manwear3`);
-            def.push(`manwear3=${model}`);
+            if ((compare && id < compare.size) || modelId < modelRenameOffset!) {
+                const model = ModelPack.getById(modelId);
+                def.push(`manwear3=${model}`);
+            } else {
+                const model = renameModel(modelId, `${debugname}_manwear3`);
+                def.push(`manwear3=${model}`);
+            }
         } else if (code === 79) {
             const modelId = dat.g2();
 
             modelIds.push(modelId);
 
-            const model = renameModel(modelId, `${debugname}_womanwear3`);
-            def.push(`womanwear3=${model}`);
+            if ((compare && id < compare.size) || modelId < modelRenameOffset!) {
+                const model = ModelPack.getById(modelId);
+                def.push(`womanwear3=${model}`);
+            } else {
+                const model = renameModel(modelId, `${debugname}_womanwear3`);
+                def.push(`womanwear3=${model}`);
+            }
         } else if (code === 90) {
             const modelId = dat.g2();
 
             modelIds.push(modelId);
 
-            const model = renameModel(modelId, `${debugname}_manhead`);
-            def.push(`manhead=${model}`);
+            if ((compare && id < compare.size) || modelId < modelRenameOffset!) {
+                const model = ModelPack.getById(modelId);
+                def.push(`manhead=${model}`);
+            } else {
+                const model = renameModel(modelId, `${debugname}_manhead`);
+                def.push(`manhead=${model}`);
+            }
         } else if (code === 91) {
             const modelId = dat.g2();
 
             modelIds.push(modelId);
 
-            const model = renameModel(modelId, `${debugname}_womanhead`);
-            def.push(`womanhead=${model}`);
+            if ((compare && id < compare.size) || modelId < modelRenameOffset!) {
+                const model = ModelPack.getById(modelId);
+                def.push(`womanhead=${model}`);
+            } else {
+                const model = renameModel(modelId, `${debugname}_womanhead`);
+                def.push(`womanhead=${model}`);
+            }
         } else if (code === 92) {
             const modelId = dat.g2();
 
             modelIds.push(modelId);
 
-            const model = renameModel(modelId, `${debugname}_manhead2`);
-            def.push(`manhead2=${model}`);
+            if ((compare && id < compare.size) || modelId < modelRenameOffset!) {
+                const model = ModelPack.getById(modelId);
+                def.push(`manhead2=${model}`);
+            } else {
+                const model = renameModel(modelId, `${debugname}_manhead2`);
+                def.push(`manhead2=${model}`);
+            }
         } else if (code === 93) {
             const modelId = dat.g2();
 
             modelIds.push(modelId);
 
-            const model = renameModel(modelId, `${debugname}_womanhead2`);
-            def.push(`womanhead2=${model}`);
+            if ((compare && id < compare.size) || modelId < modelRenameOffset!) {
+                const model = ModelPack.getById(modelId);
+                def.push(`womanhead2=${model}`);
+            } else {
+                const model = renameModel(modelId, `${debugname}_womanhead2`);
+                def.push(`womanhead2=${model}`);
+            }
         } else if (code === 95) {
             const zan2d = dat.g2();
             def.push(`2dzan=${zan2d}`);

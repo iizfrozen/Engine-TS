@@ -20,14 +20,13 @@ function renameModel(id: number, shape: number) {
 }
 
 type LocModelShape = { model: number, shape: number };
-export type LocModels = { models: LocModelShape[], ldModels: LocModelShape[] };
+export type LocModels = { models: LocModelShape[] };
 
 export function unpackLocModels(config: ConfigIdx, id: number): LocModels {
     const { dat, pos } = config;
     dat.pos = pos[id];
 
     const models: LocModelShape[] = [];
-    const ldModels: LocModelShape[] = [];
 
     while (true) {
         const code = dat.g1();
@@ -36,6 +35,7 @@ export function unpackLocModels(config: ConfigIdx, id: number): LocModels {
         }
 
         if (code === 1) {
+            // 1 model per shape
             const count = dat.g1();
 
             for (let i = 0; i < count; i++) {
@@ -51,6 +51,19 @@ export function unpackLocModels(config: ConfigIdx, id: number): LocModels {
             dat.gjstr();
         } else if (code === 3) {
             dat.gjstr();
+        } else if (code === 5) {
+            // multiple models for the default shape
+            const count = dat.g1();
+
+            for (let i = 0; i < count; i++) {
+                const model = dat.g2();
+                const shape = LocShapeSuffix._8;
+
+                models.push({
+                    model,
+                    shape
+                });
+            }
         } else if (code === 14) {
             dat.g1();
         } else if (code === 15) {
@@ -114,18 +127,10 @@ export function unpackLocModels(config: ConfigIdx, id: number): LocModels {
             // no-op
         } else if (code === 75) {
             dat.gbool();
-        } else if (code === 77) {
-            dat.g2();
-            dat.g2();
-
-            const states = dat.g1();
-            for (let i = 0; i <= states; i++) {
-                dat.g2();
-            }
         }
     }
 
-    return { models, ldModels };
+    return { models };
 }
 
 export enum LocShapeSuffix {
@@ -152,6 +157,12 @@ export enum LocShapeSuffix {
     _x = 19, // roofedge_diagonalcorner
     _c = 20, // roofedge_l
     _v = 21 // roofedge_squarecorner
+}
+
+function exclusiveAdd(collection: string[], value: string) {
+    if (collection.indexOf(value) === -1) {
+        collection.push(value);
+    }
 }
 
 export function unpackLocConfig(config: ConfigIdx, id: number): string[] {
@@ -199,6 +210,19 @@ export function unpackLocConfig(config: ConfigIdx, id: number): string[] {
         } else if (code === 3) {
             const desc = dat.gjstr();
             def.push(`desc=${desc}`);
+        } else if (code === 5) {
+            const count = dat.g1();
+
+            for (let i = 0; i < count; i++) {
+                const index = i + 1;
+                const modelId = dat.g2();
+                const shape = LocShapeSuffix._8;
+
+                modelIds.push(modelId);
+
+                const name = renameModel(modelId, shape);
+                exclusiveAdd(def, `model${index > 1 ? index : ''}=${name}`);
+            }
         } else if (code === 14) {
             const width = dat.g1();
             def.push(`width=${width}`);
@@ -290,6 +314,11 @@ export function unpackLocConfig(config: ConfigIdx, id: number): string[] {
             def.push(`offsetz=${offsetz}`);
         } else if (code === 73) {
             def.push('forcedecor=yes');
+        } else if (code === 74) {
+            def.push('breakroutefinding=yes');
+        } else if (code === 75) {
+            const raiseobject = dat.gbool();
+            def.push(`raiseobject=${raiseobject ? 'yes' : 'no'}`);
         } else {
             printFatalError(`unknown loc code ${code}, last code ${lastCode}`);
         }

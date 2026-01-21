@@ -4,7 +4,7 @@ import FileStream from '#/io/FileStream.js';
 import Jagfile from '#/io/Jagfile.js';
 import Packet from '#/io/Packet.js';
 import { printFatalError, printInfo } from '#/util/Logger.js';
-import { FloPack, IdkPack, LocPack, ModelPack, NpcPack, ObjPack, SeqPack, SpotAnimPack, VarpPack } from '#tools/pack/PackFile.js';
+import { FloPack, IdkPack, LocPack, ModelPack, NpcPack, ObjPack, SeqPack, SpotAnimPack, VarbitPack, VarpPack } from '#tools/pack/PackFile.js';
 
 import { ConfigIdx } from './Common.js';
 import { unpackSeqConfig } from './SeqConfig.js';
@@ -18,6 +18,7 @@ import { unpackVarpConfig } from './VarpConfig.js';
 import { unpackSpotAnimConfig } from './SpotAnimConfig.js';
 import Model from '#/cache/graphics/Model.js';
 import { listFilesExt } from '#tools/pack/Parse.js';
+import { unpackVarbitConfig } from '#tools/unpack/config/VarbitConfig.js';
 
 function readConfigIdx(idx: Packet | null, dat: Packet | null): ConfigIdx {
     if (!idx || !dat) {
@@ -60,6 +61,8 @@ function unpackConfigNames(type: string, config: Jagfile) {
         pack = FloPack;
     } else if (type === 'varp') {
         pack = VarpPack;
+    } else if (type === 'varbit') {
+        pack = VarbitPack;
     } else if (type === 'spotanim') {
         pack = SpotAnimPack;
     }
@@ -96,25 +99,25 @@ function reorderUnpacked(config: string[], settings: { moveName: boolean, moveDe
             name.push(line);
         } else if (settings.moveDesc && line.startsWith('desc=')) {
             desc.push(line);
-        } else if (settings.moveModel && (line.startsWith('model') || line.startsWith('ldmodel'))) {
+        } else if (settings.moveModel && line.startsWith('model')) {
             model.push(line);
         } else if (settings.moveRecol && (line.startsWith('recol') || line.startsWith('retex'))) {
             recol.push(line);
-        } else {
+        } else if (!line.startsWith('hasalpha=') && !line.startsWith('code9=')) {
             others.push(line);
         }
     }
     return [...debugname, ...name, ...desc, ...model, ...recol, ...others];
 }
 
-type UnpackConfigImpl = (source: ConfigIdx, id: number) => string[];
+type UnpackConfigImpl = (source: ConfigIdx, id: number, compare?: ConfigIdx, modelRenameOffset?: number) => string[];
 
-function unpackConfig(revision: string, type: string, unpack: UnpackConfigImpl, config: Jagfile, config2?: Jagfile) {
+function unpackConfig(revision: string, type: string, unpack: UnpackConfigImpl, config: Jagfile, config2?: Jagfile, modelRenameOffset?: number) {
     const sourceIdx = readConfigIdx(config.read(type + '.idx'), config.read(type + '.dat'));
     printInfo(`Unpacking ${sourceIdx.size} ${type} configs`);
 
     let compareIdx;
-    if (config2) {
+    if (config2 && config2.has(type + '.idx')) {
         compareIdx = readConfigIdx(config2.read(type + '.idx'), config2.read(type + '.dat'));
     }
 
@@ -160,12 +163,12 @@ function unpackConfig(revision: string, type: string, unpack: UnpackConfigImpl, 
     }
 
     for (let id = 0; id < sourceIdx.size; id++) {
-        const unpacked = reorderUnpacked(unpack(sourceIdx, id), settings);
+        const unpacked = reorderUnpacked(unpack(sourceIdx, id, compareIdx, modelRenameOffset), settings);
         unpacked.push('');
 
         if (compareIdx) {
             if (id < compareIdx.size) {
-                const unpacked2 = reorderUnpacked(unpack(compareIdx, id), settings);
+                const unpacked2 = reorderUnpacked(unpack(compareIdx, id, undefined, modelRenameOffset), settings);
                 unpacked2.push('');
 
                 for (let i = 0; i < unpacked2.length; i++) {
@@ -199,8 +202,13 @@ function unpackConfig(revision: string, type: string, unpack: UnpackConfigImpl, 
 
 type UnpackModelImpl = (source: ConfigIdx, id: number) => number[] | LocModels;
 
-function unpackModelNames(type: string, unpack: UnpackModelImpl, config: Jagfile) {
+function unpackModelNames(type: string, unpack: UnpackModelImpl, config: Jagfile, config2?: Jagfile, modelRenameOffset?: number) {
     const sourceIdx = readConfigIdx(config.read(type + '.idx'), config.read(type + '.dat'));
+
+    let compareIdx;
+    if (config2 && config2.has(type + '.dat')) {
+        compareIdx = readConfigIdx(config2.read(type + '.idx'), config2.read(type + '.dat'));
+    }
 
     const locs: LocModels[] = [];
     for (let id = 0; id < sourceIdx.size; id++) {
@@ -214,17 +222,15 @@ function unpackModelNames(type: string, unpack: UnpackModelImpl, config: Jagfile
                 seenAsNonCentrepiece[info.model] = true;
             }
         }
-
-        for (const info of config.ldModels) {
-            if (info.shape !== 10) {
-                seenAsNonCentrepiece[info.model] = true;
-            }
-        }
     }
 
     const existingFiles = listFilesExt(`${Environment.BUILD_SRC_DIR}/models`, '.ob2');
 
-    for (let id = 0; id < locs.length; id++) {
+    let start = 0;
+    if (compareIdx) {
+        start = compareIdx.size;
+    }
+    for (let id = start; id < locs.length; id++) {
         const config = locs[id];
         let debugname = LocPack.getById(id);
 
@@ -241,6 +247,10 @@ function unpackModelNames(type: string, unpack: UnpackModelImpl, config: Jagfile
                 continue;
             }
 
+            if (model < modelRenameOffset!) {
+                continue;
+            }
+
             const modelName = ModelPack.getById(model);
             if (!modelName.startsWith('model_')) {
                 continue;
@@ -250,32 +260,6 @@ function unpackModelNames(type: string, unpack: UnpackModelImpl, config: Jagfile
             let i = 2;
             while (ModelPack.getByName(name) !== -1) {
                 name = `${debugname}i${i}${LocShapeSuffix[shape]}`;
-                i++;
-            }
-
-            const filePath = existingFiles.find(x => x.endsWith(`/${modelName}.ob2`));
-            if (filePath) {
-                fs.renameSync(filePath, `${Environment.BUILD_SRC_DIR}/models/loc/${name}.ob2`);
-            }
-
-            ModelPack.register(model, name);
-        }
-
-        for (const info of config.ldModels) {
-            const { model, shape } = info;
-            if (shape === LocShapeSuffix._8 && seenAsNonCentrepiece[model]) {
-                continue;
-            }
-
-            const modelName = ModelPack.getById(model);
-            if (!modelName.startsWith('model_')) {
-                continue;
-            }
-
-            let name = `${debugname}_ld${LocShapeSuffix[shape]}`;
-            let i = 2;
-            while (ModelPack.getByName(name) !== -1) {
-                name = `${debugname}i${i}_ld${LocShapeSuffix[shape]}`;
                 i++;
             }
 
@@ -305,12 +289,14 @@ function unpackConfigs(revision: string) {
     const config = new Jagfile(new Packet(temp));
 
     let config2;
+    let modelRenameOffset = cache.count(1);
     if (fs.existsSync('data/pack/main_file_cache.dat')) {
         const cache2 = new FileStream('data/pack');
         const temp = cache2.read(0, 2);
         if (temp) {
             config2 = new Jagfile(new Packet(temp));
         }
+        modelRenameOffset = cache2.count(1);
     }
 
     printInfo(`Unpacking rev ${revision} into ${Environment.BUILD_SRC_DIR}/scripts`);
@@ -328,6 +314,7 @@ function unpackConfigs(revision: string) {
     unpackConfigNames('flo', config);
     unpackConfigNames('spotanim', config);
     unpackConfigNames('varp', config);
+    unpackConfigNames('varbit', config);
 
     if (!fs.existsSync(`${Environment.BUILD_SRC_DIR}/models/obj`)) {
         fs.mkdirSync(`${Environment.BUILD_SRC_DIR}/models/obj`, { recursive: true });
@@ -349,20 +336,21 @@ function unpackConfigs(revision: string) {
         fs.mkdirSync(`${Environment.BUILD_SRC_DIR}/models/npc`, { recursive: true });
     }
 
-    unpackModelNames('loc', unpackLocModels, config);
+    unpackModelNames('loc', unpackLocModels, config, config2, modelRenameOffset);
 
-    unpackConfig(revision, 'loc', unpackLocConfig, config, config2);
-    unpackConfig(revision, 'obj', unpackObjConfig, config, config2);
-    unpackConfig(revision, 'spotanim', unpackSpotAnimConfig, config, config2);
-    unpackConfig(revision, 'idk', unpackIdkConfig, config, config2);
-    unpackConfig(revision, 'npc', unpackNpcConfig, config, config2);
+    unpackConfig(revision, 'loc', unpackLocConfig, config, config2, modelRenameOffset);
+    unpackConfig(revision, 'obj', unpackObjConfig, config, config2, modelRenameOffset);
+    unpackConfig(revision, 'spotanim', unpackSpotAnimConfig, config, config2, modelRenameOffset);
+    unpackConfig(revision, 'idk', unpackIdkConfig, config, config2, modelRenameOffset);
+    unpackConfig(revision, 'npc', unpackNpcConfig, config, config2, modelRenameOffset);
     unpackConfig(revision, 'seq', unpackSeqConfig, config, config2);
     unpackConfig(revision, 'flo', unpackFloConfig, config, config2);
     unpackConfig(revision, 'varp', unpackVarpConfig, config, config2);
+    unpackConfig(revision, 'varbit', unpackVarbitConfig, config, config2);
 
     ModelPack.save();
 
     printInfo('Done! Manual post processing may be required.');
 }
 
-unpackConfigs('244');
+unpackConfigs('254');

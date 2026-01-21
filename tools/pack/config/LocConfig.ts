@@ -38,7 +38,7 @@ export function parseLocConfig(key: string, value: string): ConfigValue | null |
         'name', 'desc',
         'op1', 'op2', 'op3', 'op4', 'op5',
         // defer parsing to packing stage:
-        'model'
+        'model', 'model2', 'model3', 'model4',
     ];
     // prettier-ignore
     const numberKeys = [
@@ -56,7 +56,8 @@ export function parseLocConfig(key: string, value: string): ConfigValue | null |
         'active', 'hillskew', 'sharelight', 'occlude',
         'hasalpha',
         'mirror', 'shadow',
-        'forcedecor'
+        'forcedecor',
+        'breakroutefinding', 'raiseobject'
     ];
 
     if (stringKeys.includes(key)) {
@@ -303,6 +304,13 @@ export function packLocConfigs(configs: Map<string, ConfigLine[]>, modelFlags: n
                     if (value === true) {
                         client.p1(73);
                     }
+                } else if (key === 'breakroutefinding') {
+                    if (value === true) {
+                        client.p1(74);
+                    }
+                } else if (key === 'raiseobject') {
+                    client.p1(75);
+                    client.pbool(value as boolean);
                 }
             }
 
@@ -367,12 +375,29 @@ export function packLocConfigs(configs: Map<string, ConfigLine[]>, modelFlags: n
             }
 
             if (models.length > 0) {
-                client.p1(1);
-
-                client.p1(models.length);
+                let centrepieceOnly = true;
                 for (let i = 0; i < models.length; i++) {
-                    client.p2(models[i].model);
-                    client.p1(models[i].shape);
+                    if (models[i].shape !== LocShapeSuffix._8) {
+                        centrepieceOnly = false;
+                        break;
+                    }
+                }
+
+                if (centrepieceOnly) {
+                    client.p1(5);
+
+                    client.p1(models.length);
+                    for (let i = 0; i < models.length; i++) {
+                        client.p2(models[i].model);
+                    }
+                } else {
+                    client.p1(1);
+
+                    client.p1(models.length);
+                    for (let i = 0; i < models.length; i++) {
+                        client.p2(models[i].model);
+                        client.p1(models[i].shape);
+                    }
                 }
             }
 

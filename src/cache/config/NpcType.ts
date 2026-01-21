@@ -24,6 +24,16 @@ export default class NpcType extends ConfigType {
         this.parse(server, jag);
     }
 
+    static async loadAsync(dir: string) {
+        const file = await fetch(`${dir}/server/npc.dat`);
+        if (!file.ok) {
+            return;
+        }
+
+        const [server, jag] = await Promise.all([file.arrayBuffer(), Jagfile.loadAsync(`${dir}/client/config`)]);
+        this.parse(new Packet(new Uint8Array(server)), jag);
+    }
+
     static parse(server: Packet, jag: Jagfile) {
         NpcType.configNames = new Map();
         NpcType.configs = [];
@@ -94,6 +104,7 @@ export default class NpcType extends ConfigType {
     ambient = 0;
     contrast = 0;
     headicon = -1;
+    turnspeed = 32;
 
     // server-side
     regenrate = 100;
@@ -198,6 +209,8 @@ export default class NpcType extends ConfigType {
             this.contrast = dat.g1b();
         } else if (code === 102) {
             this.headicon = dat.g2();
+        } else if (code === 103) {
+            this.turnspeed = dat.g2();
         } else if (code === 200) {
             this.wanderrange = dat.g2();
         } else if (code === 201) {

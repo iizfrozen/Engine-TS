@@ -12,21 +12,6 @@ import Environment from '#/util/Environment.js';
 import { printWarning } from '#/util/Logger.js';
 import { convertImage } from '#tools/pack/PixPack.js';
 
-// function packWater(underlay: Packet, overlay: Packet, mx: number, mz: number) {
-//     underlay.p1(mx);
-//     underlay.p1(mz);
-
-//     overlay.p1(mx);
-//     overlay.p1(mz);
-
-//     for (let i = 0; i < 4096; i++) {
-//         underlay.p1(1 + FloType.getId('muddygrass'));
-
-//         overlay.p1(1 + FloType.getId('water'));
-//         overlay.p1(0);
-//     }
-// }
-
 export async function packWorldmap() {
     if (!fs.existsSync('data/pack/server/maps')) {
         return;
@@ -503,23 +488,6 @@ export async function packWorldmap() {
             }
         }
     }
-
-    // packWater(underlay, overlay, 39, 56);
-    // packWater(underlay, overlay, 40, 56);
-    // packWater(underlay, overlay, 42, 44);
-    // packWater(underlay, overlay, 42, 45);
-    // packWater(underlay, overlay, 42, 46);
-    // packWater(underlay, overlay, 42, 47);
-    // packWater(underlay, overlay, 42, 48);
-    // packWater(underlay, overlay, 43, 44);
-    // packWater(underlay, overlay, 44, 44);
-    // packWater(underlay, overlay, 45, 44);
-    // packWater(underlay, overlay, 46, 44);
-    // packWater(underlay, overlay, 47, 44);
-    // packWater(underlay, overlay, 47, 45);
-    // packWater(underlay, overlay, 47, 46);
-    // packWater(underlay, overlay, 48, 45);
-    // packWater(underlay, overlay, 48, 46);
 
     jag.write('underlay.dat', underlay);
 

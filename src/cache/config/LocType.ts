@@ -36,6 +36,7 @@ export default class LocType extends ConfigType {
             config.decodeType(server);
             config.decodeType(client);
             config.postDecode();
+            config.postDecode();
 
             LocType.configs[id] = config;
 
@@ -67,6 +68,7 @@ export default class LocType extends ConfigType {
     }
 
     // ----
+
 
     models: Uint16Array | null = null;
     shapes: Uint8Array | null = null;
@@ -100,6 +102,8 @@ export default class LocType extends ConfigType {
     offsety = 0;
     offsetz = 0;
     forcedecor = false;
+    breakroutefinding = false;
+    raiseobject = -1;
 
     // server-side
     category = -1;
@@ -119,6 +123,14 @@ export default class LocType extends ConfigType {
             this.name = dat.gjstr();
         } else if (code === 3) {
             this.desc = dat.gjstr();
+        } else if (code === 5) {
+            const count = dat.g1();
+            this.models = new Uint16Array(count);
+            this.shapes = null;
+
+            for (let i = 0; i < count; i++) {
+                this.models[i] = dat.g2();
+            }
         } else if (code === 14) {
             this.width = dat.g1();
         } else if (code === 15) {
@@ -190,6 +202,10 @@ export default class LocType extends ConfigType {
             this.offsetz = dat.g2s();
         } else if (code === 73) {
             this.forcedecor = true;
+        } else if (code === 74) {
+            this.breakroutefinding = true;
+        } else if (code === 75) {
+            this.raiseobject = dat.g1();
         } else if (code === 249) {
             this.params = ParamHelper.decodeParams(dat);
         } else if (code === 250) {
@@ -203,7 +219,7 @@ export default class LocType extends ConfigType {
         if (this.active === -1) {
             this.active = 0;
 
-            if (this.shapes && this.shapes.length === 1 && this.shapes[0] === 10) {
+            if (this.models && (!this.shapes || (this.shapes && this.shapes[0] === 10))) {
                 this.active = 1;
             }
 
